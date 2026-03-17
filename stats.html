@@ -9,15 +9,22 @@
         .filter-box { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
         .input-row { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 15px; }
         input { padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
-        .status-badge { padding: 6px 12px; border-radius: 20px; font-size: 14px; font-weight: bold; background: #eee; }
+        /* 狀態標籤樣式 */
+        .status-badge { padding: 6px 12px; border-radius: 20px; font-size: 14px; font-weight: bold; background: #eee; transition: 0.3s; }
         .status-ok { background: #e8f5e9; color: #2e7d32; }
+        .status-err { background: #ffebee; color: #c62828; }
+        .status-wait { background: #fff3e0; color: #ef6c00; }
+        
         .btn { padding: 10px 20px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; transition: 0.3s; }
         .btn-query { background: #4CAF50; color: white; }
+        .btn-query:hover { background: #45a049; }
         .btn-export { background: #2196F3; color: white; }
+        
         table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; border-radius: 8px; overflow: hidden; }
         th, td { border: 1px solid #eee; padding: 12px; text-align: center; }
         th { background: #4CAF50; color: white; }
         tr:nth-child(even) { background: #fafafa; }
+        .loading-text { color: #666; font-style: italic; }
     </style>
 </head>
 <body>
@@ -31,7 +38,7 @@
         <div class="input-row">
             小組編號：<input type="text" id="groupCode" placeholder="例如：VN01" style="width: 120px; text-transform: uppercase;">
             <span id="idResult" class="status-badge">等待輸入...</span>
-            <select id="adminGroupSelect" style="display:none; padding: 10px;"></select>
+            <select id="adminGroupSelect" style="display:none; padding: 10px; border-radius: 6px; border: 1px solid #ddd;"></select>
         </div>
         <div class="input-row">
             查詢區間：<input type="date" id="startDate"> <span>~</span> <input type="date" id="endDate">
@@ -45,33 +52,60 @@
     </div>
 
     <script>
-        const API_URL = '您的GAS部署網址'; // 務必更換為您的 /exec 網址
+        // 已填入您的 API 網址
+        const API_URL = 'https://script.google.com/macros/s/AKfycbzfaWh_ooRTGijLV_7lYFUHFm83oL6DvYt9rt6ze5mDXhtwLv8ymxLX_PGuDTHzmNwe/exec';
         let identifiedGroupName = "";
         let isAdmin = false;
+        let debounceTimer; // 用於防抖
 
-        // 監聽編號輸入，自動尋找小組
-        document.getElementById('groupCode').addEventListener('input', async (e) => {
+        // 監聽編號輸入，實作 1 秒防抖
+        document.getElementById('groupCode').addEventListener('input', (e) => {
             const code = e.target.value.trim().toUpperCase();
             const idRes = document.getElementById('idResult');
             const adminSelect = document.getElementById('adminGroupSelect');
             
-            if (code.length >= 4) {
-                idRes.innerText = '查詢中...';
-                const res = await callAPI('findGroupByCode', { groupCode: code });
-                if (res.success) {
-                    identifiedGroupName = res.groupName;
-                    isAdmin = res.isAdmin;
-                    idRes.className = 'status-badge status-ok';
-                    idRes.innerText = isAdmin ? '🛡️ 最高權限模式' : `✅ 小組：${res.groupName}`;
-                    adminSelect.style.display = isAdmin ? 'inline-block' : 'none';
-                    if (isAdmin) loadAdminOptions();
-                } else {
-                    identifiedGroupName = "";
-                    idRes.innerText = '❌ 查無此代碼';
-                    idRes.className = 'status-badge';
-                    adminSelect.style.display = 'none';
-                }
+            clearTimeout(debounceTimer); // 清除舊的計時器
+
+            if (code.length === 0) {
+                idRes.innerText = '等待輸入...';
+                idRes.className = 'status-badge';
+                return;
             }
+
+            // 設定狀態為等待中
+            idRes.innerText = '等待中...';
+            idRes.className = 'status-badge status-wait';
+
+            // 停手 1 秒 (1000ms) 後觸發
+            debounceTimer = setTimeout(async () => {
+                if (code.length < 4) {
+                    idRes.innerText = '❌ 字數不足';
+                    idRes.className = 'status-badge status-err';
+                    return;
+                }
+
+                idRes.innerText = '查詢中...';
+                try {
+                    const res = await callAPI('findGroupByCode', { groupCode: code });
+                    if (res.success) {
+                        identifiedGroupName = res.groupName;
+                        isAdmin = res.isAdmin;
+                        idRes.className = 'status-badge status-ok';
+                        idRes.innerText = isAdmin ? '🛡️ 最高權限模式' : `✅ 小組：${res.groupName}`;
+                        
+                        adminSelect.style.display = isAdmin ? 'inline-block' : 'none';
+                        if (isAdmin) loadAdminOptions();
+                    } else {
+                        identifiedGroupName = "";
+                        idRes.innerText = '❌ 查無此代碼';
+                        idRes.className = 'status-badge status-err';
+                        adminSelect.style.display = 'none';
+                    }
+                } catch (err) {
+                    idRes.innerText = '⚠️ 連線異常';
+                    idRes.className = 'status-badge status-err';
+                }
+            }, 1000);
         });
 
         async function loadAdminOptions() {
@@ -86,11 +120,14 @@
         }
 
         async function loadStats() {
-            if (!identifiedGroupName) return alert('請先輸入正確的編號');
+            if (!identifiedGroupName) return alert('請先輸入正確的編號並等待識別');
             const code = document.getElementById('groupCode').value.toUpperCase();
             const start = document.getElementById('startDate').value;
             const end = document.getElementById('endDate').value;
             const group = isAdmin ? document.getElementById('adminGroupSelect').value : identifiedGroupName;
+
+            const tbody = document.querySelector('#statsTable tbody');
+            tbody.innerHTML = '<tr><td colspan="5" class="loading-text">資料讀取中，請稍候...</td></tr>';
 
             let res;
             if (isAdmin && group === 'ALL') {
@@ -109,25 +146,33 @@
             const isSingleDay = (start === end && start !== "");
 
             if (isSingleDay) {
+                // 單日模式：顯示詳細 V/X
                 thead.innerHTML = `<tr><th>姓名</th><th>出席狀態</th></tr>`;
                 const row = res.data[0] || [];
                 const present = row[1] ? row[1].split(", ") : [];
                 const absent = row[2] ? row[2].split(", ") : [];
-                let html = present.map(n => `<tr><td>${n}</td><td style="color:green">V (出席)</td></tr>`).join('');
-                html += absent.map(n => `<tr><td>${n}</td><td style="color:red">缺席</td></tr>`).join('');
-                tbody.innerHTML = html;
+                
+                let html = present.filter(n => n).map(n => `<tr><td>${n}</td><td style="color:green; font-weight:bold;">V (出席)</td></tr>`).join('');
+                html += absent.filter(n => n).map(n => `<tr><td>${n}</td><td style="color:red;">缺席</td></tr>`).join('');
+                tbody.innerHTML = html || '<tr><td colspan="2">當日無紀錄</td></tr>';
             } else {
-                thead.innerHTML = `<tr><th>姓名</th><th>聚會次數</th><th>出席次數</th><th>出席率</th></tr>`;
+                // 區間模式：顯示摘要 (不打勾)
+                thead.innerHTML = `<tr><th>姓名</th><th>區間聚會次數</th><th>出席次數</th><th>出席率</th></tr>`;
                 const totalSessions = res.data.length;
                 const counts = {};
                 res.data.forEach(row => {
-                    row[1].split(", ").forEach(name => {
+                    const presentNames = row[1] ? row[1].split(", ") : [];
+                    presentNames.forEach(name => {
                         if(name) counts[name] = (counts[name] || 0) + 1;
                     });
                 });
-                tbody.innerHTML = Object.entries(counts).map(([name, count]) => `
-                    <tr><td>${name}</td><td>${totalSessions}</td><td>${count}</td><td>${((count/totalSessions)*100).toFixed(1)}%</td></tr>
-                `).join('');
+                
+                const sortedNames = Object.keys(counts).sort((a,b) => counts[b] - counts[a]);
+                tbody.innerHTML = sortedNames.map(name => {
+                    const count = counts[name];
+                    const rate = ((count/totalSessions)*100).toFixed(1);
+                    return `<tr><td>${name}</td><td>${totalSessions}</td><td>${count}</td><td>${rate}%</td></tr>`;
+                }).join('');
             }
         }
 
@@ -138,24 +183,32 @@
             const isSingleDay = (start === end && start !== "");
 
             if (isSingleDay) {
-                thead.innerHTML = `<tr><th>姓名</th><th>小組</th><th>出席狀態</th></tr>`;
-                tbody.innerHTML = res.members.map(m => `<tr><td>${m.name}</td><td>${m.group}</td><td style="color:green">V</td></tr>`).join('');
+                thead.innerHTML = `<tr><th>姓名</th><th>小組</th><th>狀態</th></tr>`;
+                tbody.innerHTML = res.members.map(m => `<tr><td>${m.name}</td><td>${m.group}</td><td style="color:green; font-weight:bold;">V</td></tr>`).join('');
             } else {
-                thead.innerHTML = `<tr><th>姓名</th><th>小組</th><th>總次數</th><th>出席次數</th><th>出席率</th></tr>`;
+                thead.innerHTML = `<tr><th>姓名</th><th>小組</th><th>總聚會次數</th><th>出席次數</th><th>出席率</th></tr>`;
                 const total = res.dates.length;
                 tbody.innerHTML = res.members.map(m => {
                     const count = Object.keys(m.attendance).length;
-                    return `<tr><td>${m.name}</td><td>${m.group}</td><td>${total}</td><td>${count}</td><td>${((count/total)*100).toFixed(1)}%</td></tr>`;
+                    const rate = ((count/total)*100).toFixed(1);
+                    return `<tr><td>${m.name}</td><td>${m.group}</td><td>${total}</td><td>${count}</td><td>${rate}%</td></tr>`;
                 }).join('');
             }
         }
 
         async function callAPI(action, data) {
-            return fetch(API_URL, {method:'POST', body: JSON.stringify({action, data})}).then(r => r.json());
+            const response = await fetch(API_URL, {
+                method: 'POST', 
+                body: JSON.stringify({action, data}),
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            });
+            return await response.json();
         }
 
         function exportToExcel() {
             const table = document.getElementById("statsTable");
+            if (table.rows.length <= 1) return alert('目前沒有資料可供匯出');
+            
             let csv = "\ufeff";
             for (let i = 0; i < table.rows.length; i++) {
                 const row = [], cols = table.rows[i].cells;
@@ -165,7 +218,7 @@
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
-            link.download = `小組統計_${new Date().toISOString().split('T')[0]}.csv`;
+            link.download = `小組統計報表_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`;
             link.click();
         }
     </script>
