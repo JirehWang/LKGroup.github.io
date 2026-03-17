@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小組點名 - 進行中</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .member-item { display: flex; align-items: center; padding: 10px; border-bottom: 1px dashed #ccc; }
+        .member-item input[type="checkbox"] { transform: scale(1.5); margin-right: 15px; }
+        .btn { padding: 10px 20px; cursor: pointer; border: none; border-radius: 4px; color: white; margin-top: 10px; }
+        .btn-save { background-color: #2196F3; width: 100%; font-size: 18px; }
+        .btn-init { background-color: #f44336; }
+        .new-friend { margin-top: 20px; padding: 10px; background: #f9f9f9; border-radius: 5px; }
+        #init-panel { text-align: center; margin-top: 50px; display: none; }
+        #attendance-panel { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h2 id="displayGroupName">載入中...</h2>
+        <a href="index.html">⬅️ 返回</a>
+    </div>
+
+    <div id="init-panel">
+        <p>偵測到此小組尚未建立成員名單。</p>
+        <textarea id="memberInput" rows="10" style="width:100%" placeholder="請輸入成員姓名，一個姓名換一行..."></textarea>
+        <button class="btn btn-init" onclick="initGroup()">建立成員名單</button>
+    </div>
+
+    <div id="attendance-panel">
+        <div style="margin: 15px 0;">
+            日期：<input type="date" id="attendanceDate">
+        </div>
+        
+        <div id="memberList">
+            </div>
+
+        <div class="new-friend">
+            <h4>➕ 新朋友 (如有請輸入，多位請用逗號隔開)</h4>
+            <input type="text" id="newFriends" style="width:90%; padding:8px;" placeholder="例如：張三, 李四">
+        </div>
+
+        <button class="btn btn-save" onclick="submitAttendance()">送出點名結果</button>
+    </div>
+
+    <script>
+        const API_URL = '您的GAS部署網址'; // 務必替換
+        const urlParams = new URLSearchParams(window.location.search);
+        const groupName = urlParams.get('name');
+
+        document.getElementById('displayGroupName').innerText = groupName || '未知名組別';
+        document.getElementById('attendanceDate').valueAsDate = new Date();
+
+        window.onload = checkGroupStatus;
+
+        async function callAPI(action, data = {}) {
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action, data }),
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            });
+            return await response.json();
+        }
+
+        // 檢查小組是否有專屬分頁
+        async function checkGroupStatus() {
+            const res = await callAPI('checkGroupStatus', { groupName });
+            if (res.isInitialized) {
+                document.getElementById('attendance-panel').style.display = 'block';
+                renderMemberList(res.members);
+            } else {
+                document.getElementById('init-panel').style.display = 'block';
+            }
+        }
+
+        // 第一次建立名單
+        async function initGroup() {
+            const members = document.getElementById('memberInput').value.split('\n').filter(n => n.trim());
+            if (members.length === 0) return alert('請輸入名單');
+            
+            alert('正在初始化分頁，請稍候...');
+            const res = await callAPI('initGroup', { groupName, members });
+            if (res.success) {
+                location.reload();
+            } else {
+                alert(res.message);
+            }
+        }
+
+        function renderMemberList(members) {
+            const list = document.getElementById('memberList');
+            list.innerHTML = members.map(name => `
+                <div class="member-item">
+                    <input type="checkbox" class="attendance-check" value="${name}">
+                    <span>${name}</span>
+                </div>
+            `).join('');
+        }
+
+        // 送出點名
+        async function submitAttendance() {
+            const date = document.getElementById('attendanceDate').value;
+            const present = Array.from(document.querySelectorAll('.attendance-check:checked')).map(cb => cb.value);
+            const absent = Array.from(document.querySelectorAll('.attendance-check:not(:checked)')).map(cb => cb.value);
+            const newFriends = document.getElementById('newFriends').value;
+
+            alert('點名送出中...');
+            const res = await callAPI('submitAttendance', {
+                groupName, date, present, absent, newFriends
+            });
+
+            if (res.success) {
+                alert('點名成功！');
+                window.location.href = 'index.html';
+            } else {
+                alert('失敗：' + res.message);
+            }
+        }
+    </script>
+</body>
+</html>
