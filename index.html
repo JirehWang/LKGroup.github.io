@@ -6,32 +6,68 @@
     <title>小組點名系統 - 主首頁</title>
     <style>
         :root { --primary-color: #4CAF50; --admin-color: #2196F3; --create-color: #FF9800; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 20px; max-width: 900px; margin: auto; background-color: #f5f7f9; }
         
-        /* 標題與頂部導覽 */
+        /* --- 全域遮罩樣式 --- */
+        #loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.85);
+            z-index: 9999;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(3px);
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-msg {
+            margin-top: 15px;
+            color: #333;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        /* --- 原有樣式 --- */
+        body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 20px; max-width: 900px; margin: auto; background-color: #f5f7f9; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
         .stats-link { background: var(--admin-color); color: white; text-decoration: none; padding: 10px 20px; border-radius: 50px; font-weight: bold; transition: 0.3s; }
         .stats-link:hover { opacity: 0.8; transform: translateY(-2px); }
 
-        /* 小組標籤容器 */
         #group-list-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; }
-        
         .tag-btn { padding: 20px 10px; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); background: white; color: #333; text-align: center; }
         .tag-btn:hover { transform: scale(1.05); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
         .group-tag { border-top: 5px solid var(--primary-color); }
         .create-tag { border: 2px dashed var(--create-color); color: var(--create-color); background: #fffbf2; }
 
-        /* 彈出視窗 (Modal) */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; backdrop-filter: blur(4px); }
         .modal-content { background: white; width: 90%; max-width: 400px; margin: 100px auto; padding: 30px; border-radius: 16px; position: relative; }
         .modal-content h3 { margin-top: 0; color: #333; }
         .modal-content input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
         .close-btn { position: absolute; top: 15px; right: 15px; font-size: 24px; cursor: pointer; color: #999; }
-        
         .submit-btn { width: 100%; padding: 12px; background: var(--create-color); color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; margin-top: 10px; }
     </style>
 </head>
 <body>
+
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-msg" id="overlay-text">載入中...</div>
+    </div>
 
     <div class="header">
         <h1>⛪ 小組點名系統</h1>
@@ -39,8 +75,7 @@
     </div>
     
     <div id="group-list-container">
-        <p>載入中...</p>
-    </div>
+        </div>
 
     <div id="createModal" class="modal">
         <div class="modal-content">
@@ -57,7 +92,18 @@
 
         window.onload = fetchGroups;
 
+        // --- Loading 控制函式 ---
+        function showLoading(msg = "處理中...") {
+            document.getElementById('overlay-text').innerText = msg;
+            document.getElementById('loading-overlay').style.display = 'flex';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-overlay').style.display = 'none';
+        }
+
         async function fetchGroups() {
+            showLoading("正在獲取最新小組清單...");
             const container = document.getElementById('group-list-container');
             try {
                 const response = await fetch(API_URL, {
@@ -69,7 +115,6 @@
                 
                 if (res.success) {
                     container.innerHTML = '';
-                    // 1. 渲染現有小組
                     res.groups.forEach(group => {
                         const btn = document.createElement('button');
                         btn.className = 'tag-btn group-tag';
@@ -78,7 +123,6 @@
                         container.appendChild(btn);
                     });
 
-                    // 2. 渲染「創建小組」標籤
                     const createBtn = document.createElement('button');
                     createBtn.className = 'tag-btn create-tag';
                     createBtn.innerText = '➕ 創建新小組';
@@ -86,7 +130,9 @@
                     container.appendChild(createBtn);
                 }
             } catch (e) {
-                container.innerHTML = '<p>讀取失敗，請重新整理</p>';
+                container.innerHTML = '<p>讀取失敗，請重新整理頁面</p>';
+            } finally {
+                hideLoading();
             }
         }
 
@@ -99,41 +145,48 @@
             const code = document.getElementById('newGroupCode').value;
             if (!name || !code) return alert('請填寫完整資訊');
 
-            const btn = document.querySelector('.submit-btn');
-            btn.disabled = true;
-            btn.innerText = '建立中...';
-
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                body: JSON.stringify({ action: 'createGroup', data: { groupName: name, groupCode: code } }),
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-            });
-            const res = await response.json();
-            
-            alert(res.message);
-            if (res.success) {
-                toggleModal(false);
-                fetchGroups();
+            showLoading("正在雲端建立小組並設定權限...");
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'createGroup', data: { groupName: name, groupCode: code } }),
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+                });
+                const res = await response.json();
+                alert(res.message);
+                if (res.success) {
+                    toggleModal(false);
+                    fetchGroups();
+                }
+            } catch (e) {
+                alert("建立失敗，請稍後再試。");
+            } finally {
+                hideLoading();
             }
-            btn.disabled = false;
-            btn.innerText = '確認建立';
         }
 
         async function enterGroup(groupName) {
             const code = prompt(`請輸入【${groupName}】的小組編號：`);
             if (code === null) return;
 
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                body: JSON.stringify({ action: 'verifyGroup', data: { groupName, groupCode: code } }),
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-            });
-            const res = await response.json();
-            
-            if (res.success) {
-                window.location.href = `group.html?name=${encodeURIComponent(groupName)}`;
-            } else {
-                alert(res.message);
+            showLoading(`正在驗證【${groupName}】的身分...`);
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'verifyGroup', data: { groupName, groupCode: code } }),
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+                });
+                const res = await response.json();
+                
+                if (res.success) {
+                    window.location.href = `group.html?name=${encodeURIComponent(groupName)}`;
+                } else {
+                    alert(res.message);
+                }
+            } catch (e) {
+                alert("驗證時發生網路錯誤。");
+            } finally {
+                hideLoading();
             }
         }
     </script>
