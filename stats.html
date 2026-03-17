@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小組點名系統 - 統計中心</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .filter-box { background: #f4f4f4; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background: #4CAF50; color: white; }
+        .admin-only { display: none; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>📊 統計與報表中心</h1>
+    <div class="filter-box">
+        <div>
+            小組編號：<input type="password" id="groupCode" placeholder="請輸入編號">
+            小組名稱：<select id="groupSelect"><option value="">-- 請先輸入編號 --</option></select>
+        </div>
+        <div style="margin-top:10px;">
+            區間：<input type="date" id="startDate"> ~ <input type="date" id="endDate">
+            <button onclick="loadStats()">查詢統計</button>
+            <button onclick="exportToExcel()" style="background:#2196F3; color:white;">匯出 Excel</button>
+        </div>
+    </div>
+
+    <div id="resultArea">
+        <table id="statsTable"><thead></thead><tbody></tbody></table>
+    </div>
+
+    <script>
+        const API_URL = '您的GAS部署網址';
+
+        // 監聽編號輸入，若是 LK31 則開啟下拉選單
+        document.getElementById('groupCode').addEventListener('input', async (e) => {
+            if (e.target.value === 'LK31') {
+                document.getElementById('groupSelect').innerHTML = '<option value="ALL">-- 全小組彙整 --</option>';
+                const res = await fetch(API_URL, {method:'POST', body: JSON.stringify({action:'getGroups'})}).then(r => r.json());
+                res.groups.forEach(g => {
+                    const opt = document.createElement('option');
+                    opt.value = g.name; opt.innerText = g.name;
+                    document.getElementById('groupSelect').appendChild(opt);
+                });
+            }
+        });
+
+        async function loadStats() {
+            const code = document.getElementById('groupCode').value;
+            const group = document.getElementById('groupSelect').value;
+            const start = document.getElementById('startDate').value;
+            const end = document.getElementById('endDate').value;
+
+            let res;
+            if (code === 'LK31' && group === 'ALL') {
+                res = await callAPI('getAllGroupsStats', { groupCode: code, startDate: start, endDate: end });
+                renderAllStats(res);
+            } else {
+                res = await callAPI('getStats', { groupName: group, groupCode: code, startDate: start, endDate: end });
+                renderSingleStats(res);
+            }
+        }
+
+        function renderSingleStats(res) {
+            if (!res.success) return alert(res.message);
+            const thead = document.querySelector('#statsTable thead');
+            const tbody = document.querySelector('#statsTable tbody');
+            thead.innerHTML = `<tr>${res.headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
+            tbody.innerHTML = res.data.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('');
+        }
+
+        function renderAllStats(res) {
+            if (!res.success) return alert(res.message);
+            const thead = document.querySelector('#statsTable thead');
+            const tbody = document.querySelector('#statsTable tbody');
+            
+            let headerHtml = `<tr><th>姓名</th><th>小組</th>`;
+            res.dates.forEach(d => headerHtml += `<th>${d}</th>`);
+            headerHtml += `<th>出席次數</th></tr>`;
+            thead.innerHTML = headerHtml;
+
+            let bodyHtml = "";
+            res.members.forEach(m => {
+                let count = 0;
+                bodyHtml += `<tr><td>${m.name}</td><td>${m.group}</td>`;
+                res.dates.forEach(d => {
+                    const present = m.attendance[d] ? "V" : "";
+                    if(present) count++;
+                    bodyHtml += `<td>${present}</td>`;
+                });
+                bodyHtml += `<td>${count}</td></tr>`;
+            });
+            tbody.innerHTML = bodyHtml;
+        }
+
+        async function callAPI(action, data) {
+            return fetch(API_URL, {method:'POST', body: JSON.stringify({action, data})}).then(r => r.json());
+        }
+
+        function exportToExcel() {
+            const table = document.getElementById("statsTable");
+            let csv = "\ufeff"; // UTF-8 BOM 防止中文亂碼
+            for (let i = 0; i < table.rows.length; i++) {
+                const row = [], cols = table.rows[i].cells;
+                for (let j = 0; j < cols.length; j++) row.push(cols[j].innerText);
+                csv += row.join(",") + "\r\n";
+            }
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "小組統計報表.csv";
+            link.click();
+        }
+    </script>
+</body>
+</html>
