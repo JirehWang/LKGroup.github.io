@@ -3,97 +3,134 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>小組點名系統</title>
+    <title>小組點名系統 - 主首頁</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; max-width: 800px; margin: auto; }
-        .group-btn { padding: 15px 20px; margin: 10px; font-size: 16px; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 5px; }
-        .group-btn:hover { background-color: #45a049; }
-        .control-panel { margin-top: 30px; padding: 20px; background-color: #f1f1f1; border-radius: 8px; }
-        input { padding: 8px; margin: 5px 0; width: 200px; }
-        button { padding: 8px 15px; cursor: pointer; }
+        :root { --primary-color: #4CAF50; --admin-color: #2196F3; --create-color: #FF9800; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 20px; max-width: 900px; margin: auto; background-color: #f5f7f9; }
+        
+        /* 標題與頂部導覽 */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .stats-link { background: var(--admin-color); color: white; text-decoration: none; padding: 10px 20px; border-radius: 50px; font-weight: bold; transition: 0.3s; }
+        .stats-link:hover { opacity: 0.8; transform: translateY(-2px); }
+
+        /* 小組標籤容器 */
+        #group-list-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; }
+        
+        .tag-btn { padding: 20px 10px; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); background: white; color: #333; text-align: center; }
+        .tag-btn:hover { transform: scale(1.05); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
+        .group-tag { border-top: 5px solid var(--primary-color); }
+        .create-tag { border: 2px dashed var(--create-color); color: var(--create-color); background: #fffbf2; }
+
+        /* 彈出視窗 (Modal) */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; backdrop-filter: blur(4px); }
+        .modal-content { background: white; width: 90%; max-width: 400px; margin: 100px auto; padding: 30px; border-radius: 16px; position: relative; }
+        .modal-content h3 { margin-top: 0; color: #333; }
+        .modal-content input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        .close-btn { position: absolute; top: 15px; right: 15px; font-size: 24px; cursor: pointer; color: #999; }
+        
+        .submit-btn { width: 100%; padding: 12px; background: var(--create-color); color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-    <h1>小組點名系統 - 主介面</h1>
+    <div class="header">
+        <h1>⛪ 小組點名系統</h1>
+        <a href="stats.html" class="stats-link">📊 統計中心</a>
+    </div>
     
     <div id="group-list-container">
-        <p>載入小組清單中...</p>
+        <p>載入中...</p>
     </div>
 
-    <div class="control-panel">
-        <h3>創建新小組</h3>
-        <input type="text" id="newGroupName" placeholder="請輸入小組名稱">
-        <input type="password" id="newGroupCode" placeholder="請設定小組編號 (密碼)">
-        <button onclick="createNewGroup()">建立</button>
+    <div id="createModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="toggleModal(false)">&times;</span>
+            <h3>✨ 創建新小組</h3>
+            <input type="text" id="newGroupName" placeholder="請輸入小組名稱">
+            <input type="password" id="newGroupCode" placeholder="請設定小組編號 (密碼)">
+            <button class="submit-btn" onclick="createNewGroup()">確認建立</button>
+        </div>
     </div>
 
     <script>
-        // 替換成您的 GAS 部署網址
         const API_URL = 'https://script.google.com/macros/s/AKfycbzfaWh_ooRTGijLV_7lYFUHFm83oL6DvYt9rt6ze5mDXhtwLv8ymxLX_PGuDTHzmNwe/exec';
 
-        // 頁面載入時獲取小組清單
-        window.onload = function() {
-            fetchGroups();
-        };
+        window.onload = fetchGroups;
 
-        // 呼叫 GAS API 的共用函式
-        async function callAPI(action, data = {}) {
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                body: JSON.stringify({ action: action, data: data }),
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' } // 避免 GAS CORS 問題
-            });
-            return await response.json();
-        }
-
-        // 取得並渲染小組按鈕
         async function fetchGroups() {
             const container = document.getElementById('group-list-container');
-            const res = await callAPI('getGroups');
-            
-            if (res.success) {
-                container.innerHTML = ''; // 清空載入中文字
-                res.groups.forEach(group => {
-                    const btn = document.createElement('button');
-                    btn.className = 'group-btn';
-                    btn.innerText = group.name;
-                    btn.onclick = () => enterGroup(group.name);
-                    container.appendChild(btn);
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'getGroups' }),
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }
                 });
-            } else {
-                container.innerHTML = `<p style="color:red;">載入失敗：${res.message}</p>`;
+                const res = await response.json();
+                
+                if (res.success) {
+                    container.innerHTML = '';
+                    // 1. 渲染現有小組
+                    res.groups.forEach(group => {
+                        const btn = document.createElement('button');
+                        btn.className = 'tag-btn group-tag';
+                        btn.innerText = group.name;
+                        btn.onclick = () => enterGroup(group.name);
+                        container.appendChild(btn);
+                    });
+
+                    // 2. 渲染「創建小組」標籤
+                    const createBtn = document.createElement('button');
+                    createBtn.className = 'tag-btn create-tag';
+                    createBtn.innerText = '➕ 創建新小組';
+                    createBtn.onclick = () => toggleModal(true);
+                    container.appendChild(createBtn);
+                }
+            } catch (e) {
+                container.innerHTML = '<p>讀取失敗，請重新整理</p>';
             }
         }
 
-        // 創建新小組
+        function toggleModal(show) {
+            document.getElementById('createModal').style.display = show ? 'block' : 'none';
+        }
+
         async function createNewGroup() {
             const name = document.getElementById('newGroupName').value;
             const code = document.getElementById('newGroupCode').value;
-            
-            if (!name || !code) return alert('名稱與編號不可為空！');
+            if (!name || !code) return alert('請填寫完整資訊');
 
-            alert('創建中，請稍候...');
-            const res = await callAPI('createGroup', { groupName: name, groupCode: code });
+            const btn = document.querySelector('.submit-btn');
+            btn.disabled = true;
+            btn.innerText = '建立中...';
+
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'createGroup', data: { groupName: name, groupCode: code } }),
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            });
+            const res = await response.json();
             
             alert(res.message);
             if (res.success) {
-                document.getElementById('newGroupName').value = '';
-                document.getElementById('newGroupCode').value = '';
-                fetchGroups(); // 重新載入按鈕
+                toggleModal(false);
+                fetchGroups();
             }
+            btn.disabled = false;
+            btn.innerText = '確認建立';
         }
 
-        // 點擊小組標籤，輸入編號並驗證
         async function enterGroup(groupName) {
             const code = prompt(`請輸入【${groupName}】的小組編號：`);
-            if (code === null) return; // 按下取消
+            if (code === null) return;
 
-            const res = await callAPI('verifyGroup', { groupName: groupName, groupCode: code });
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'verifyGroup', data: { groupName, groupCode: code } }),
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            });
+            const res = await response.json();
             
             if (res.success) {
-                // 驗證成功，跳轉到該小組專屬頁面 (透過 URL 參數傳遞小組名稱)
-                // 預計我們將建立 group.html 來處理各小組介面
                 window.location.href = `group.html?name=${encodeURIComponent(groupName)}`;
             } else {
                 alert(res.message);
