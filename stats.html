@@ -5,11 +5,46 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>小組點名系統 - 統計中心</title>
     <style>
+        /* --- 全域遮罩樣式 --- */
+        #loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.85);
+            z-index: 9999;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(3px);
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-msg {
+            margin-top: 15px;
+            color: #333;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        /* --- 原有樣式 --- */
         body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 20px; max-width: 1000px; margin: auto; background-color: #f8f9fa; }
         .filter-box { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
         .input-row { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 15px; }
         input { padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
-        /* 狀態標籤樣式 */
         .status-badge { padding: 6px 12px; border-radius: 20px; font-size: 14px; font-weight: bold; background: #eee; transition: 0.3s; }
         .status-ok { background: #e8f5e9; color: #2e7d32; }
         .status-err { background: #ffebee; color: #c62828; }
@@ -24,10 +59,14 @@
         th, td { border: 1px solid #eee; padding: 12px; text-align: center; }
         th { background: #4CAF50; color: white; }
         tr:nth-child(even) { background: #fafafa; }
-        .loading-text { color: #666; font-style: italic; }
     </style>
 </head>
 <body>
+
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-msg" id="overlay-text">處理中，請稍候...</div>
+    </div>
 
     <div style="display: flex; justify-content: space-between; align-items: center;">
         <h1>📊 統計與報表中心</h1>
@@ -52,19 +91,28 @@
     </div>
 
     <script>
-        // 已填入您的 API 網址
         const API_URL = 'https://script.google.com/macros/s/AKfycbzfaWh_ooRTGijLV_7lYFUHFm83oL6DvYt9rt6ze5mDXhtwLv8ymxLX_PGuDTHzmNwe/exec';
         let identifiedGroupName = "";
         let isAdmin = false;
-        let debounceTimer; // 用於防抖
+        let debounceTimer;
 
-        // 監聽編號輸入，實作 1 秒防抖
+        // --- Loading 控制函式 ---
+        function showLoading(msg = "處理中...") {
+            document.getElementById('overlay-text').innerText = msg;
+            document.getElementById('loading-overlay').style.display = 'flex';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-overlay').style.display = 'none';
+        }
+
+        // 監聽編號輸入 (1秒防抖)
         document.getElementById('groupCode').addEventListener('input', (e) => {
             const code = e.target.value.trim().toUpperCase();
             const idRes = document.getElementById('idResult');
             const adminSelect = document.getElementById('adminGroupSelect');
             
-            clearTimeout(debounceTimer); // 清除舊的計時器
+            clearTimeout(debounceTimer);
 
             if (code.length === 0) {
                 idRes.innerText = '等待輸入...';
@@ -72,11 +120,9 @@
                 return;
             }
 
-            // 設定狀態為等待中
             idRes.innerText = '等待中...';
             idRes.className = 'status-badge status-wait';
 
-            // 停手 1 秒 (1000ms) 後觸發
             debounceTimer = setTimeout(async () => {
                 if (code.length < 4) {
                     idRes.innerText = '❌ 字數不足';
@@ -84,7 +130,8 @@
                     return;
                 }
 
-                idRes.innerText = '查詢中...';
+                // 識別代碼時使用 Loading
+                showLoading("正在驗證小組編號...");
                 try {
                     const res = await callAPI('findGroupByCode', { groupCode: code });
                     if (res.success) {
@@ -94,7 +141,7 @@
                         idRes.innerText = isAdmin ? '🛡️ 最高權限模式' : `✅ 小組：${res.groupName}`;
                         
                         adminSelect.style.display = isAdmin ? 'inline-block' : 'none';
-                        if (isAdmin) loadAdminOptions();
+                        if (isAdmin) await loadAdminOptions();
                     } else {
                         identifiedGroupName = "";
                         idRes.innerText = '❌ 查無此代碼';
@@ -103,12 +150,14 @@
                     }
                 } catch (err) {
                     idRes.innerText = '⚠️ 連線異常';
-                    idRes.className = 'status-badge status-err';
+                } finally {
+                    hideLoading();
                 }
             }, 1000);
         });
 
         async function loadAdminOptions() {
+            // 注意：這裡不呼叫 showLoading，因為它通常被包含在更大型的操作中
             const res = await callAPI('getGroups');
             const select = document.getElementById('adminGroupSelect');
             select.innerHTML = '<option value="ALL">-- 全小組彙整 --</option>';
@@ -126,17 +175,33 @@
             const end = document.getElementById('endDate').value;
             const group = isAdmin ? document.getElementById('adminGroupSelect').value : identifiedGroupName;
 
-            const tbody = document.querySelector('#statsTable tbody');
-            tbody.innerHTML = '<tr><td colspan="5" class="loading-text">資料讀取中，請稍候...</td></tr>';
-
-            let res;
-            if (isAdmin && group === 'ALL') {
-                res = await callAPI('getAllGroupsStats', { groupCode: code, startDate: start, endDate: end });
-                renderAllStats(res, start, end);
-            } else {
-                res = await callAPI('getStats', { groupName: group, groupCode: code, startDate: start, endDate: end });
-                renderSingleStats(res, start, end);
+            // 查詢統計時顯示詳細 Loading
+            showLoading("正在從雲端資料庫彙整報表，請稍候...");
+            
+            try {
+                let res;
+                if (isAdmin && group === 'ALL') {
+                    res = await callAPI('getAllGroupsStats', { groupCode: code, startDate: start, endDate: end });
+                    renderAllStats(res, start, end);
+                } else {
+                    res = await callAPI('getStats', { groupName: group, groupCode: code, startDate: start, endDate: end });
+                    renderSingleStats(res, start, end);
+                }
+            } catch (e) {
+                alert("查詢失敗，請稍後再試。");
+            } finally {
+                hideLoading();
             }
+        }
+
+        // 修改後的 callAPI (內部不再重複呼叫 Loading，由調用端決定文字)
+        async function callAPI(action, data) {
+            const response = await fetch(API_URL, {
+                method: 'POST', 
+                body: JSON.stringify({action, data}),
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            });
+            return await response.json();
         }
 
         function renderSingleStats(res, start, end) {
@@ -146,7 +211,6 @@
             const isSingleDay = (start === end && start !== "");
 
             if (isSingleDay) {
-                // 單日模式：顯示詳細 V/X
                 thead.innerHTML = `<tr><th>姓名</th><th>出席狀態</th></tr>`;
                 const row = res.data[0] || [];
                 const present = row[1] ? row[1].split(", ") : [];
@@ -156,8 +220,7 @@
                 html += absent.filter(n => n).map(n => `<tr><td>${n}</td><td style="color:red;">缺席</td></tr>`).join('');
                 tbody.innerHTML = html || '<tr><td colspan="2">當日無紀錄</td></tr>';
             } else {
-                // 區間模式：顯示摘要 (不打勾)
-                thead.innerHTML = `<tr><th>姓名</th><th>區間聚會次數</th><th>出席次數</th><th>出席率</th></tr>`;
+                thead.innerHTML = `<tr><th>姓名</th><th>聚會次數</th><th>出席次數</th><th>出席率</th></tr>`;
                 const totalSessions = res.data.length;
                 const counts = {};
                 res.data.forEach(row => {
@@ -166,7 +229,6 @@
                         if(name) counts[name] = (counts[name] || 0) + 1;
                     });
                 });
-                
                 const sortedNames = Object.keys(counts).sort((a,b) => counts[b] - counts[a]);
                 tbody.innerHTML = sortedNames.map(name => {
                     const count = counts[name];
@@ -196,30 +258,25 @@
             }
         }
 
-        async function callAPI(action, data) {
-            const response = await fetch(API_URL, {
-                method: 'POST', 
-                body: JSON.stringify({action, data}),
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-            });
-            return await response.json();
-        }
-
         function exportToExcel() {
             const table = document.getElementById("statsTable");
             if (table.rows.length <= 1) return alert('目前沒有資料可供匯出');
             
-            let csv = "\ufeff";
-            for (let i = 0; i < table.rows.length; i++) {
-                const row = [], cols = table.rows[i].cells;
-                for (let j = 0; j < cols.length; j++) row.push(cols[j].innerText);
-                csv += row.join(",") + "\r\n";
-            }
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = `小組統計報表_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`;
-            link.click();
+            showLoading("正在準備 Excel 檔案...");
+            setTimeout(() => {
+                let csv = "\ufeff";
+                for (let i = 0; i < table.rows.length; i++) {
+                    const row = [], cols = table.rows[i].cells;
+                    for (let j = 0; j < cols.length; j++) row.push(cols[j].innerText);
+                    csv += row.join(",") + "\r\n";
+                }
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = `小組統計報表_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`;
+                link.click();
+                hideLoading();
+            }, 500); // 給一點緩衝時間讓使用者看到 Loading
         }
     </script>
 </body>
