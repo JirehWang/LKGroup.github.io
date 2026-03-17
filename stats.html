@@ -5,94 +5,149 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>小組點名系統 - 統計中心</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        .filter-box { background: #f4f4f4; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 20px; max-width: 1000px; margin: auto; background-color: #f8f9fa; }
+        .filter-box { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .input-row { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 15px; }
+        input { padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .status-badge { padding: 6px 12px; border-radius: 20px; font-size: 14px; font-weight: bold; background: #eee; }
+        .status-ok { background: #e8f5e9; color: #2e7d32; }
+        .btn { padding: 10px 20px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; transition: 0.3s; }
+        .btn-query { background: #4CAF50; color: white; }
+        .btn-export { background: #2196F3; color: white; }
+        table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; border-radius: 8px; overflow: hidden; }
+        th, td { border: 1px solid #eee; padding: 12px; text-align: center; }
         th { background: #4CAF50; color: white; }
-        .admin-only { display: none; margin-top: 10px; }
+        tr:nth-child(even) { background: #fafafa; }
     </style>
 </head>
 <body>
-    <h1>📊 統計與報表中心</h1>
+
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>📊 統計與報表中心</h1>
+        <a href="index.html" style="text-decoration: none; color: #666;">⬅️ 回首頁</a>
+    </div>
+
     <div class="filter-box">
-        <div>
-            小組編號：<input type="password" id="groupCode" placeholder="請輸入編號">
-            小組名稱：<select id="groupSelect"><option value="">-- 請先輸入編號 --</option></select>
+        <div class="input-row">
+            小組編號：<input type="text" id="groupCode" placeholder="例如：VN01" style="width: 120px; text-transform: uppercase;">
+            <span id="idResult" class="status-badge">等待輸入...</span>
+            <select id="adminGroupSelect" style="display:none; padding: 10px;"></select>
         </div>
-        <div style="margin-top:10px;">
-            區間：<input type="date" id="startDate"> ~ <input type="date" id="endDate">
-            <button onclick="loadStats()">查詢統計</button>
-            <button onclick="exportToExcel()" style="background:#2196F3; color:white;">匯出 Excel</button>
+        <div class="input-row">
+            查詢區間：<input type="date" id="startDate"> <span>~</span> <input type="date" id="endDate">
+            <button class="btn btn-query" onclick="loadStats()">🔍 查詢統計</button>
+            <button class="btn btn-export" onclick="exportToExcel()">📥 匯出 Excel</button>
         </div>
     </div>
 
-    <div id="resultArea">
+    <div id="resultArea" style="overflow-x: auto;">
         <table id="statsTable"><thead></thead><tbody></tbody></table>
     </div>
 
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbzfaWh_ooRTGijLV_7lYFUHFm83oL6DvYt9rt6ze5mDXhtwLv8ymxLX_PGuDTHzmNwe/exec';
+        const API_URL = '您的GAS部署網址'; // 務必更換為您的 /exec 網址
+        let identifiedGroupName = "";
+        let isAdmin = false;
 
-        // 監聽編號輸入，若是 LK31 則開啟下拉選單
+        // 監聽編號輸入，自動尋找小組
         document.getElementById('groupCode').addEventListener('input', async (e) => {
-            if (e.target.value === 'LK31') {
-                document.getElementById('groupSelect').innerHTML = '<option value="ALL">-- 全小組彙整 --</option>';
-                const res = await fetch(API_URL, {method:'POST', body: JSON.stringify({action:'getGroups'})}).then(r => r.json());
-                res.groups.forEach(g => {
-                    const opt = document.createElement('option');
-                    opt.value = g.name; opt.innerText = g.name;
-                    document.getElementById('groupSelect').appendChild(opt);
-                });
+            const code = e.target.value.trim().toUpperCase();
+            const idRes = document.getElementById('idResult');
+            const adminSelect = document.getElementById('adminGroupSelect');
+            
+            if (code.length >= 4) {
+                idRes.innerText = '查詢中...';
+                const res = await callAPI('findGroupByCode', { groupCode: code });
+                if (res.success) {
+                    identifiedGroupName = res.groupName;
+                    isAdmin = res.isAdmin;
+                    idRes.className = 'status-badge status-ok';
+                    idRes.innerText = isAdmin ? '🛡️ 最高權限模式' : `✅ 小組：${res.groupName}`;
+                    adminSelect.style.display = isAdmin ? 'inline-block' : 'none';
+                    if (isAdmin) loadAdminOptions();
+                } else {
+                    identifiedGroupName = "";
+                    idRes.innerText = '❌ 查無此代碼';
+                    idRes.className = 'status-badge';
+                    adminSelect.style.display = 'none';
+                }
             }
         });
 
+        async function loadAdminOptions() {
+            const res = await callAPI('getGroups');
+            const select = document.getElementById('adminGroupSelect');
+            select.innerHTML = '<option value="ALL">-- 全小組彙整 --</option>';
+            res.groups.forEach(g => {
+                const opt = document.createElement('option');
+                opt.value = g.name; opt.innerText = g.name;
+                select.appendChild(opt);
+            });
+        }
+
         async function loadStats() {
-            const code = document.getElementById('groupCode').value;
-            const group = document.getElementById('groupSelect').value;
+            if (!identifiedGroupName) return alert('請先輸入正確的編號');
+            const code = document.getElementById('groupCode').value.toUpperCase();
             const start = document.getElementById('startDate').value;
             const end = document.getElementById('endDate').value;
+            const group = isAdmin ? document.getElementById('adminGroupSelect').value : identifiedGroupName;
 
             let res;
-            if (code === 'LK31' && group === 'ALL') {
+            if (isAdmin && group === 'ALL') {
                 res = await callAPI('getAllGroupsStats', { groupCode: code, startDate: start, endDate: end });
-                renderAllStats(res);
+                renderAllStats(res, start, end);
             } else {
                 res = await callAPI('getStats', { groupName: group, groupCode: code, startDate: start, endDate: end });
-                renderSingleStats(res);
+                renderSingleStats(res, start, end);
             }
         }
 
-        function renderSingleStats(res) {
+        function renderSingleStats(res, start, end) {
             if (!res.success) return alert(res.message);
             const thead = document.querySelector('#statsTable thead');
             const tbody = document.querySelector('#statsTable tbody');
-            thead.innerHTML = `<tr>${res.headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
-            tbody.innerHTML = res.data.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('');
+            const isSingleDay = (start === end && start !== "");
+
+            if (isSingleDay) {
+                thead.innerHTML = `<tr><th>姓名</th><th>出席狀態</th></tr>`;
+                const row = res.data[0] || [];
+                const present = row[1] ? row[1].split(", ") : [];
+                const absent = row[2] ? row[2].split(", ") : [];
+                let html = present.map(n => `<tr><td>${n}</td><td style="color:green">V (出席)</td></tr>`).join('');
+                html += absent.map(n => `<tr><td>${n}</td><td style="color:red">缺席</td></tr>`).join('');
+                tbody.innerHTML = html;
+            } else {
+                thead.innerHTML = `<tr><th>姓名</th><th>聚會次數</th><th>出席次數</th><th>出席率</th></tr>`;
+                const totalSessions = res.data.length;
+                const counts = {};
+                res.data.forEach(row => {
+                    row[1].split(", ").forEach(name => {
+                        if(name) counts[name] = (counts[name] || 0) + 1;
+                    });
+                });
+                tbody.innerHTML = Object.entries(counts).map(([name, count]) => `
+                    <tr><td>${name}</td><td>${totalSessions}</td><td>${count}</td><td>${((count/totalSessions)*100).toFixed(1)}%</td></tr>
+                `).join('');
+            }
         }
 
-        function renderAllStats(res) {
+        function renderAllStats(res, start, end) {
             if (!res.success) return alert(res.message);
             const thead = document.querySelector('#statsTable thead');
             const tbody = document.querySelector('#statsTable tbody');
-            
-            let headerHtml = `<tr><th>姓名</th><th>小組</th>`;
-            res.dates.forEach(d => headerHtml += `<th>${d}</th>`);
-            headerHtml += `<th>出席次數</th></tr>`;
-            thead.innerHTML = headerHtml;
+            const isSingleDay = (start === end && start !== "");
 
-            let bodyHtml = "";
-            res.members.forEach(m => {
-                let count = 0;
-                bodyHtml += `<tr><td>${m.name}</td><td>${m.group}</td>`;
-                res.dates.forEach(d => {
-                    const present = m.attendance[d] ? "V" : "";
-                    if(present) count++;
-                    bodyHtml += `<td>${present}</td>`;
-                });
-                bodyHtml += `<td>${count}</td></tr>`;
-            });
-            tbody.innerHTML = bodyHtml;
+            if (isSingleDay) {
+                thead.innerHTML = `<tr><th>姓名</th><th>小組</th><th>出席狀態</th></tr>`;
+                tbody.innerHTML = res.members.map(m => `<tr><td>${m.name}</td><td>${m.group}</td><td style="color:green">V</td></tr>`).join('');
+            } else {
+                thead.innerHTML = `<tr><th>姓名</th><th>小組</th><th>總次數</th><th>出席次數</th><th>出席率</th></tr>`;
+                const total = res.dates.length;
+                tbody.innerHTML = res.members.map(m => {
+                    const count = Object.keys(m.attendance).length;
+                    return `<tr><td>${m.name}</td><td>${m.group}</td><td>${total}</td><td>${count}</td><td>${((count/total)*100).toFixed(1)}%</td></tr>`;
+                }).join('');
+            }
         }
 
         async function callAPI(action, data) {
@@ -101,7 +156,7 @@
 
         function exportToExcel() {
             const table = document.getElementById("statsTable");
-            let csv = "\ufeff"; // UTF-8 BOM 防止中文亂碼
+            let csv = "\ufeff";
             for (let i = 0; i < table.rows.length; i++) {
                 const row = [], cols = table.rows[i].cells;
                 for (let j = 0; j < cols.length; j++) row.push(cols[j].innerText);
@@ -110,7 +165,7 @@
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
-            link.download = "小組統計報表.csv";
+            link.download = `小組統計_${new Date().toISOString().split('T')[0]}.csv`;
             link.click();
         }
     </script>
