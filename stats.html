@@ -198,53 +198,72 @@
             return await response.json();
         }
 
+         // stats.html 中的 renderSingleStats 函式優化
         function renderSingleStats(res, start, end) {
             if (!res.success) return alert(res.message);
             const thead = document.querySelector('#statsTable thead');
             const tbody = document.querySelector('#statsTable tbody');
             const isSingleDay = (start === end && start !== "");
-
+        
             if (isSingleDay) {
-                // 單日模式：顯示詳細 V/X
-                thead.innerHTML = `<tr><th>姓名</th><th>出席狀態</th></tr>`;
+                // --- 🚀 仿主日系統：單日出席狀況模式 ---
+                thead.innerHTML = `<tr><th>類型</th><th>姓名</th><th>狀態</th></tr>`;
+                
                 const row = res.data[0] || [];
-                const present = row[1] ? row[1].split(/[,，]/).map(s => s.trim()) : [];
-                const absent = row[2] ? row[2].split(/[,，]/).map(s => s.trim()) : [];
-                const newFriends = row[3] ? row[3].split(/[,，]/).map(s => s.trim()) : [];
+                if (!row.length) {
+                    tbody.innerHTML = '<tr><td colspan="3">當日查無點名紀錄</td></tr>';
+                    return;
+                }
+        
+                const presentArr = row[1] ? row[1].split(/[,，]/).map(s => s.trim()).filter(n => n) : [];
+                const absentArr = row[2] ? row[2].split(/[,，]/).map(s => s.trim()).filter(n => n) : [];
+                const newFriendsArr = row[3] ? row[3].split(/[,，]/).map(s => s.trim()).filter(n => n) : [];
+        
+                let html = "";
                 
-                // 合併出席者與新朋友
-                const allPresent = [...new Set([...present, ...newFriends])].filter(n => n);
-                
-                let html = allPresent.map(n => `<tr><td>${n}</td><td style="color:green; font-weight:bold;">V (出席)</td></tr>`).join('');
-                html += absent.filter(n => n && !allPresent.includes(n)).map(n => `<tr><td>${n}</td><td style="color:red;">缺席</td></tr>`).join('');
-                tbody.innerHTML = html || '<tr><td colspan="2">當日無紀錄</td></tr>';
+                // 1. 先顯示正式出席者
+                presentArr.forEach(name => {
+                    html += `<tr style="background:#e8f5e9"><td>正式成員</td><td>${name}</td><td style="color:#2e7d32; font-weight:bold;">✅ 出席</td></tr>`;
+                });
+        
+                // 2. 顯示新朋友
+                newFriendsArr.forEach(name => {
+                    html += `<tr style="background:#fff3e0"><td>✨ 新朋友</td><td>${name}</td><td style="color:#ef6c00; font-weight:bold;">✅ 出席</td></tr>`;
+                });
+        
+                // 3. 顯示缺席者
+                absentArr.forEach(name => {
+                    // 如果新朋友跟缺席名單重疊(極少見)，則不重複顯示
+                    if (!presentArr.includes(name)) {
+                        html += `<tr style="background:#ffebee"><td>正式成員</td><td>${name}</td><td style="color:#c62828;">❌ 缺席</td></tr>`;
+                    }
+                });
+        
+                tbody.innerHTML = html;
+        
             } else {
-                // 區間模式：彙整正式名單與新朋友
-                thead.innerHTML = `<tr><th>姓名</th><th>區間聚會次數</th><th>出席次數</th><th>出席率</th></tr>`;
+                // --- 📊 區間摘要模式 ---
+                thead.innerHTML = `<tr><th>姓名</th><th>聚會次數</th><th>出席次數</th><th>出席率</th></tr>`;
                 const totalSessions = res.data.length;
                 const counts = {};
                 
                 res.data.forEach(row => {
-                    const presentNames = row[1] ? row[1].split(/[,，]/).map(s => s.trim()) : [];
-                    const newFriendNames = row[3] ? row[3].split(/[,，]/).map(s => s.trim()) : [];
+                    const p = row[1] ? row[1].split(/[,，]/).map(s => s.trim()) : [];
+                    const nf = row[3] ? row[3].split(/[,，]/).map(s => s.trim()) : [];
+                    const dailySet = [...new Set([...p, ...nf])].filter(n => n);
                     
-                    // 合併該次聚會的所有人並去重
-                    const allPresentThisTime = [...new Set([...presentNames, ...newFriendNames])];
-
-                    allPresentThisTime.forEach(name => {
-                        if(name) counts[name] = (counts[name] || 0) + 1;
+                    dailySet.forEach(name => {
+                        counts[name] = (counts[name] || 0) + 1;
                     });
                 });
-
-                const sortedNames = Object.keys(counts).sort((a,b) => counts[b] - counts[a]);
-                tbody.innerHTML = sortedNames.map(name => {
-                    const count = counts[name];
-                    const rate = totalSessions > 0 ? ((count/totalSessions) * 100).toFixed(1) : 0;
+        
+                const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+                tbody.innerHTML = sorted.map(([name, count]) => {
+                    const rate = ((count/totalSessions)*100).toFixed(1);
                     return `<tr><td>${name}</td><td>${totalSessions}</td><td>${count}</td><td>${rate}%</td></tr>`;
                 }).join('');
             }
         }
-
         function renderAllStats(res, start, end) {
             if (!res.success) return alert(res.message);
             const thead = document.querySelector('#statsTable thead');
