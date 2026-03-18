@@ -53,8 +53,18 @@
         #init-panel { text-align: center; margin-top: 50px; display: none; }
         #attendance-panel { display: none; }
         
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; }
-        .modal-content { background: white; width: 90%; max-width: 450px; margin: 40px auto; padding: 20px; border-radius: 8px; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; backdrop-filter: blur(2px); }
+        .modal-content { background: white; width: 90%; max-width: 450px; margin: 40px auto; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+
+        /* --- 📝 編輯名單專用樣式 --- */
+        .edit-add-box { display: flex; gap: 10px; margin-bottom: 15px; }
+        .edit-add-box input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+        .btn-add { background: #FF9800; color: white; border: none; padding: 0 15px; border-radius: 6px; cursor: pointer; font-weight: bold; white-space: nowrap; }
+        .edit-list-container { max-height: 350px; overflow-y: auto; border: 1px solid #eee; border-radius: 6px; padding: 5px; background: #fafafa; }
+        .edit-member-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; background: white; margin-bottom: 5px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .btn-remove { background: #ffebee; color: #c62828; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px; font-weight: bold; transition: 0.2s; }
+        .btn-remove:hover { background: #ffcdd2; }
+        .empty-hint { text-align: center; color: #999; padding: 30px 20px; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -95,12 +105,19 @@
 
     <div id="edit-modal" class="modal">
         <div class="modal-content">
-            <h3>編輯成員名單</h3>
-            <small style="color: gray;">每行一個名字。刪除名字即代表移除該員。</small>
-            <textarea id="editMemberInput" rows="12" style="width:100%; box-sizing: border-box; padding: 10px; margin-top: 10px;" placeholder="姓名1&#10;姓名2"></textarea>
-            <div style="display: flex; justify-content: space-between; margin-top: 15px;">
+            <h3 style="margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; color: #333;">📝 管理小組名單</h3>
+            
+            <div class="edit-add-box">
+                <input type="text" id="newMemberInput" placeholder="輸入單一成員姓名" onkeypress="if(event.key==='Enter') addEditMember()">
+                <button class="btn-add" onclick="addEditMember()">➕ 新增</button>
+            </div>
+
+            <div class="edit-list-container" id="editMemberList">
+                </div>
+
+            <div style="display: flex; justify-content: space-between; margin-top: 20px;">
                 <button class="btn" onclick="toggleEditMode()" style="background: #9e9e9e;">取消</button>
-                <button class="btn" onclick="saveUpdatedList()" style="background: #4CAF50;">儲存變更</button>
+                <button class="btn" onclick="saveUpdatedList()" style="background: #4CAF50;">💾 儲存變更</button>
             </div>
         </div>
     </div>
@@ -109,7 +126,9 @@
         const API_URL = 'https://script.google.com/macros/s/AKfycbzfaWh_ooRTGijLV_7lYFUHFm83oL6DvYt9rt6ze5mDXhtwLv8ymxLX_PGuDTHzmNwe/exec'; 
         const urlParams = new URLSearchParams(window.location.search);
         const groupName = urlParams.get('name');
-        let currentMembers = [];
+        
+        let currentMembers = []; 
+        let editingMembers = []; // 新增暫存名單陣列
 
         document.getElementById('displayGroupName').innerText = groupName || '未知名組別';
         document.getElementById('attendanceDate').valueAsDate = new Date();
@@ -126,7 +145,6 @@
         }
 
         async function callAPI(action, data = {}) {
-            // 基礎呼叫不帶 Loading，由各執行函式決定文字
             const response = await fetch(API_URL, {
                 method: 'POST',
                 body: JSON.stringify({ action, data }),
@@ -178,34 +196,78 @@
             `).join('');
         }
 
+        // --- 📝 新版編輯名單邏輯 ---
         function toggleEditMode() {
             const modal = document.getElementById('edit-modal');
             if (modal.style.display === 'block') {
                 modal.style.display = 'none';
             } else {
-                document.getElementById('editMemberInput').value = currentMembers.join('\n');
+                // 開啟時複製目前名單至暫存區
+                editingMembers = [...currentMembers];
+                document.getElementById('newMemberInput').value = ""; 
+                renderEditList();
                 modal.style.display = 'block';
             }
         }
 
+        function renderEditList() {
+            const container = document.getElementById('editMemberList');
+            if (editingMembers.length === 0) {
+                container.innerHTML = '<div class="empty-hint">目前名單為空</div>';
+                return;
+            }
+
+            container.innerHTML = editingMembers.map((name, index) => `
+                <div class="edit-member-item">
+                    <span>👤 ${name}</span>
+                    <button class="btn-remove" onclick="removeEditMember(${index})">🗑️ 移除</button>
+                </div>
+            `).join('');
+        }
+
+        function addEditMember() {
+            const input = document.getElementById('newMemberInput');
+            const newName = input.value.trim();
+            
+            if (!newName) return alert("請輸入要新增的姓名！");
+            if (editingMembers.includes(newName)) return alert("此人已經在名單中了！");
+
+            editingMembers.push(newName);
+            input.value = ""; // 清空輸入框
+            renderEditList(); // 重新渲染列表
+        }
+
+        function removeEditMember(index) {
+            const nameToRemove = editingMembers[index];
+            if (confirm(`確定要將【${nameToRemove}】從名單中移除嗎？`)) {
+                editingMembers.splice(index, 1);
+                renderEditList();
+            }
+        }
+
         async function saveUpdatedList() {
-            const members = document.getElementById('editMemberInput').value.split('\n').filter(n => n.trim());
-            if (members.length === 0) return alert('名單不可為空！');
-            if (!confirm('確定要儲存變更嗎？')) return;
+            if (editingMembers.length === 0) {
+                if (!confirm('目前名單為空，確定要清空整個小組名單嗎？')) return;
+            } else {
+                if (!confirm('確定要儲存這份新名單嗎？')) return;
+            }
 
             showLoading("正在更新雲端名單...");
             try {
-                const res = await callAPI('updateMemberList', { groupName, members });
+                const res = await callAPI('updateMemberList', { groupName, members: editingMembers });
                 if (res.success) {
                     alert('名單更新成功！');
-                    location.reload();
+                    location.reload(); 
                 } else {
                     alert('更新失敗：' + res.message);
                 }
+            } catch (e) {
+                alert("連線發生錯誤，請稍後再試。");
             } finally {
                 hideLoading();
             }
         }
+        // -----------------------------
 
         async function submitAttendance() {
             const date = document.getElementById('attendanceDate').value;
