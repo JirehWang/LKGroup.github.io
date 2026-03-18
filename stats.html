@@ -59,6 +59,7 @@
         th, td { border: 1px solid #eee; padding: 12px; text-align: center; }
         th { background: #4CAF50; color: white; }
         tr:nth-child(even) { background: #fafafa; }
+        .loading-text-inline { color: #666; font-style: italic; }
     </style>
 </head>
 <body>
@@ -96,7 +97,6 @@
         let isAdmin = false;
         let debounceTimer;
 
-        // --- Loading 控制函式 ---
         function showLoading(msg = "處理中...") {
             document.getElementById('overlay-text').innerText = msg;
             document.getElementById('loading-overlay').style.display = 'flex';
@@ -106,7 +106,6 @@
             document.getElementById('loading-overlay').style.display = 'none';
         }
 
-        // 監聽編號輸入 (1秒防抖)
         document.getElementById('groupCode').addEventListener('input', (e) => {
             const code = e.target.value.trim().toUpperCase();
             const idRes = document.getElementById('idResult');
@@ -130,7 +129,6 @@
                     return;
                 }
 
-                // 識別代碼時使用 Loading
                 showLoading("正在驗證小組編號...");
                 try {
                     const res = await callAPI('findGroupByCode', { groupCode: code });
@@ -139,7 +137,6 @@
                         isAdmin = res.isAdmin;
                         idRes.className = 'status-badge status-ok';
                         idRes.innerText = isAdmin ? '🛡️ 最高權限模式' : `✅ 小組：${res.groupName}`;
-                        
                         adminSelect.style.display = isAdmin ? 'inline-block' : 'none';
                         if (isAdmin) await loadAdminOptions();
                     } else {
@@ -157,7 +154,6 @@
         });
 
         async function loadAdminOptions() {
-            // 注意：這裡不呼叫 showLoading，因為它通常被包含在更大型的操作中
             const res = await callAPI('getGroups');
             const select = document.getElementById('adminGroupSelect');
             select.innerHTML = '<option value="ALL">-- 全小組彙整 --</option>';
@@ -170,12 +166,11 @@
 
         async function loadStats() {
             if (!identifiedGroupName) return alert('請先輸入正確的編號並等待識別');
-            const code = document.getElementById('groupCode').value.toUpperCase();
             const start = document.getElementById('startDate').value;
             const end = document.getElementById('endDate').value;
             const group = isAdmin ? document.getElementById('adminGroupSelect').value : identifiedGroupName;
+            const code = document.getElementById('groupCode').value.toUpperCase();
 
-            // 查詢統計時顯示詳細 Loading
             showLoading("正在從雲端資料庫彙整報表，請稍候...");
             
             try {
@@ -194,7 +189,6 @@
             }
         }
 
-        // 修改後的 callAPI (內部不再重複呼叫 Loading，由調用端決定文字)
         async function callAPI(action, data) {
             const response = await fetch(API_URL, {
                 method: 'POST', 
@@ -211,38 +205,45 @@
             const isSingleDay = (start === end && start !== "");
 
             if (isSingleDay) {
+                // 單日模式：顯示詳細 V/X
                 thead.innerHTML = `<tr><th>姓名</th><th>出席狀態</th></tr>`;
                 const row = res.data[0] || [];
-                const present = row[1] ? row[1].split(", ") : [];
-                const absent = row[2] ? row[2].split(", ") : [];
+                const present = row[1] ? row[1].split(/[,，]/).map(s => s.trim()) : [];
+                const absent = row[2] ? row[2].split(/[,，]/).map(s => s.trim()) : [];
+                const newFriends = row[3] ? row[3].split(/[,，]/).map(s => s.trim()) : [];
                 
-                let html = present.filter(n => n).map(n => `<tr><td>${n}</td><td style="color:green; font-weight:bold;">V (出席)</td></tr>`).join('');
-                html += absent.filter(n => n).map(n => `<tr><td>${n}</td><td style="color:red;">缺席</td></tr>`).join('');
+                // 合併出席者與新朋友
+                const allPresent = [...new Set([...present, ...newFriends])].filter(n => n);
+                
+                let html = allPresent.map(n => `<tr><td>${n}</td><td style="color:green; font-weight:bold;">V (出席)</td></tr>`).join('');
+                html += absent.filter(n => n && !allPresent.includes(n)).map(n => `<tr><td>${n}</td><td style="color:red;">缺席</td></tr>`).join('');
                 tbody.innerHTML = html || '<tr><td colspan="2">當日無紀錄</td></tr>';
             } else {
+                // 區間模式：彙整正式名單與新朋友
                 thead.innerHTML = `<tr><th>姓名</th><th>區間聚會次數</th><th>出席次數</th><th>出席率</th></tr>`;
                 const totalSessions = res.data.length;
                 const counts = {};
-            
+                
                 res.data.forEach(row => {
                     const presentNames = row[1] ? row[1].split(/[,，]/).map(s => s.trim()) : [];
                     const newFriendNames = row[3] ? row[3].split(/[,，]/).map(s => s.trim()) : [];
-            
-                    // 合併該次聚會的所有人
+                    
+                    // 合併該次聚會的所有人並去重
                     const allPresentThisTime = [...new Set([...presentNames, ...newFriendNames])];
-            
+
                     allPresentThisTime.forEach(name => {
                         if(name) counts[name] = (counts[name] || 0) + 1;
                     });
                 });
-            
+
                 const sortedNames = Object.keys(counts).sort((a,b) => counts[b] - counts[a]);
                 tbody.innerHTML = sortedNames.map(name => {
                     const count = counts[name];
-                    const rate = ((count/totalSessions) * 100).toFixed(1);
+                    const rate = totalSessions > 0 ? ((count/totalSessions) * 100).toFixed(1) : 0;
                     return `<tr><td>${name}</td><td>${totalSessions}</td><td>${count}</td><td>${rate}%</td></tr>`;
                 }).join('');
             }
+        }
 
         function renderAllStats(res, start, end) {
             if (!res.success) return alert(res.message);
@@ -258,7 +259,7 @@
                 const total = res.dates.length;
                 tbody.innerHTML = res.members.map(m => {
                     const count = Object.keys(m.attendance).length;
-                    const rate = ((count/total)*100).toFixed(1);
+                    const rate = total > 0 ? ((count/total)*100).toFixed(1) : 0;
                     return `<tr><td>${m.name}</td><td>${m.group}</td><td>${total}</td><td>${count}</td><td>${rate}%</td></tr>`;
                 }).join('');
             }
@@ -282,7 +283,7 @@
                 link.download = `小組統計報表_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`;
                 link.click();
                 hideLoading();
-            }, 500); // 給一點緩衝時間讓使用者看到 Loading
+            }, 500);
         }
     </script>
 </body>
