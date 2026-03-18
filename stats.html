@@ -220,23 +220,29 @@
                 html += absent.filter(n => n).map(n => `<tr><td>${n}</td><td style="color:red;">缺席</td></tr>`).join('');
                 tbody.innerHTML = html || '<tr><td colspan="2">當日無紀錄</td></tr>';
             } else {
-                thead.innerHTML = `<tr><th>姓名</th><th>聚會次數</th><th>出席次數</th><th>出席率</th></tr>`;
+                thead.innerHTML = `<tr><th>姓名</th><th>區間聚會次數</th><th>出席次數</th><th>出席率</th></tr>`;
                 const totalSessions = res.data.length;
                 const counts = {};
+            
                 res.data.forEach(row => {
-                    const presentNames = row[1] ? row[1].split(", ") : [];
-                    presentNames.forEach(name => {
+                    const presentNames = row[1] ? row[1].split(/[,，]/).map(s => s.trim()) : [];
+                    const newFriendNames = row[3] ? row[3].split(/[,，]/).map(s => s.trim()) : [];
+            
+                    // 合併該次聚會的所有人
+                    const allPresentThisTime = [...new Set([...presentNames, ...newFriendNames])];
+            
+                    allPresentThisTime.forEach(name => {
                         if(name) counts[name] = (counts[name] || 0) + 1;
                     });
                 });
+            
                 const sortedNames = Object.keys(counts).sort((a,b) => counts[b] - counts[a]);
                 tbody.innerHTML = sortedNames.map(name => {
                     const count = counts[name];
-                    const rate = ((count/totalSessions)*100).toFixed(1);
+                    const rate = ((count/totalSessions) * 100).toFixed(1);
                     return `<tr><td>${name}</td><td>${totalSessions}</td><td>${count}</td><td>${rate}%</td></tr>`;
                 }).join('');
             }
-        }
 
         function renderAllStats(res, start, end) {
             if (!res.success) return alert(res.message);
