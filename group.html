@@ -37,12 +37,16 @@
 
         /* --- 📊 小組進度表專用樣式 --- */
         .progress-section { margin-top: 40px; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .progress-section h3 { margin-top: 0; color: #333; border-bottom: 2px solid #4CAF50; padding-bottom: 10px; display: inline-block; }
-        .table-wrapper { max-height: 400px; overflow-y: auto; margin-top: 10px; border-radius: 6px; border: 1px solid #eee; }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #4CAF50; padding-bottom: 10px; margin-bottom: 10px; }
+        .progress-header h3 { margin: 0; color: #333; font-size: 16px; }
+        .table-wrapper { overflow-y: auto; border-radius: 6px; border: 1px solid #eee; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        th { background: #4CAF50; color: white; padding: 10px; position: sticky; top: 0; z-index: 1; }
+        th { background: #4CAF50; color: white; padding: 10px; position: sticky; top: 0; z-index: 1; text-align: center; }
         td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
         tr:nth-child(even) { background: #fafafa; }
+        
+        .share-link-btn { color: #2196F3; cursor: pointer; font-size: 13px; font-weight: bold; margin-top: 5px; display: inline-block; padding: 4px 8px; background: #e3f2fd; border-radius: 4px; }
+        .share-link-btn:active { background: #bbdefb; }
     </style>
 </head>
 <body>
@@ -53,7 +57,10 @@
     </div>
 
     <div class="header">
-        <h2 id="displayGroupName">載入中...</h2>
+        <div>
+            <h2 id="displayGroupName" style="margin: 0;">載入中...</h2>
+            <div id="shareLinkBtn" class="share-link-btn" style="display: none;" onclick="copyShareLink()">🔗 複製專屬點名連結</div>
+        </div>
         <a href="index.html" style="text-decoration: none; color: #666; font-weight: bold;">⬅️ 返回首頁</a>
     </div>
 
@@ -81,7 +88,10 @@
         <button class="btn btn-save" onclick="submitAttendance()">💾 送出今日點名</button>
 
         <div class="progress-section" id="progressSection" style="display: none;">
-            <h3>📊 近期聚會紀錄</h3>
+            <div class="progress-header">
+                <h3>📊 近期聚會紀錄 <span style="font-size: 13px; color: #666;">(最近3次)</span></h3>
+                <button class="btn" style="background-color: #9C27B0; padding: 6px 12px; margin: 0; font-size: 13px;" onclick="goToFullStats()">📈 完整統計中心</button>
+            </div>
             <div class="table-wrapper">
                 <table>
                     <thead>
@@ -121,7 +131,7 @@
         const API_URL = 'https://script.google.com/macros/s/AKfycbzfaWh_ooRTGijLV_7lYFUHFm83oL6DvYt9rt6ze5mDXhtwLv8ymxLX_PGuDTHzmNwe/exec'; 
         const urlParams = new URLSearchParams(window.location.search);
         const groupName = urlParams.get('name');
-        const groupCode = urlParams.get('code'); // 接收專屬連結帶來的代碼
+        const groupCode = urlParams.get('code'); 
         
         let currentMembers = []; 
         let editingMembers = []; 
@@ -157,8 +167,8 @@
                     document.getElementById('attendance-panel').style.display = 'block';
                     renderMemberList(res.members);
                     
-                    // 若有代碼，則自動載入下方歷史進度表
                     if (groupCode) {
+                        document.getElementById('shareLinkBtn').style.display = 'inline-block';
                         await loadGroupProgress();
                     }
                 } else {
@@ -169,19 +179,36 @@
             }
         }
 
-        // --- 📊 渲染歷史進度表邏輯 ---
+        // --- 🔗 複製專屬連結與跳轉統計 ---
+        function copyShareLink() {
+            if (!groupCode) return alert("未取得小組編號，無法產生連結。");
+            const shareUrl = `https://jirehwang.github.io/LKC1958_June_1.github.io/?id=${groupCode}`;
+            
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                alert("✅ 專屬連結已複製！可直接貼上並傳送給組員或自行收藏。");
+            }).catch(() => {
+                prompt("您的瀏覽器不支援自動複製，請手動複製以下連結：", shareUrl);
+            });
+        }
+
+        function goToFullStats() {
+            // 跳轉至外部的 LKGroup.github.io 統計中心，並帶上代碼
+            window.location.href = `https://jirehwang.github.io/LKGroup.github.io/stats.html?id=${groupCode || ''}`;
+        }
+
+        // --- 📊 渲染近期進度表邏輯 (只取3筆) ---
         async function loadGroupProgress() {
             const tbody = document.getElementById('progressTableBody');
             document.getElementById('progressSection').style.display = 'block';
 
             try {
-                // 呼叫 getStats，日期留白代表抓取全歷史
                 const res = await callAPI('getStats', { groupName: groupName, groupCode: groupCode, startDate: "", endDate: "" });
                 
                 if (res.success && res.data.length > 0) {
-                    const reversedData = res.data.slice().reverse(); // 最新日期排最上面
+                    // 反轉陣列並使用 .slice(0, 3) 只截取最新 3 筆
+                    const latestData = res.data.slice().reverse().slice(0, 3); 
                     
-                    tbody.innerHTML = reversedData.map(row => {
+                    tbody.innerHTML = latestData.map(row => {
                         const dateObj = new Date(row[0]);
                         const dateStr = `${dateObj.getMonth() + 1}/${dateObj.getDate()}`; 
                         
@@ -213,7 +240,6 @@
         async function initGroup() {
             const members = document.getElementById('memberInput').value.split('\n').filter(n => n.trim());
             if (members.length === 0) return alert('請輸入名單');
-            
             showLoading("正在建立雲端分頁，這可能需要幾秒鐘...");
             try {
                 const res = await callAPI('initGroup', { groupName, members });
@@ -262,10 +288,8 @@
         function addEditMember() {
             const input = document.getElementById('newMemberInput');
             const newName = input.value.trim();
-            
             if (!newName) return alert("請輸入要新增的姓名！");
             if (editingMembers.includes(newName)) return alert("此人已經在名單中了！");
-
             editingMembers.push(newName);
             input.value = ""; 
             renderEditList(); 
@@ -285,21 +309,14 @@
             } else {
                 if (!confirm('確定要儲存這份新名單嗎？')) return;
             }
-
             showLoading("正在更新雲端名單...");
             try {
                 const res = await callAPI('updateMemberList', { groupName, members: editingMembers });
                 if (res.success) {
                     alert('名單更新成功！');
                     location.reload(); 
-                } else {
-                    alert('更新失敗：' + res.message);
-                }
-            } catch (e) {
-                alert("連線發生錯誤，請稍後再試。");
-            } finally {
-                hideLoading();
-            }
+                } else { alert('更新失敗：' + res.message); }
+            } catch (e) { alert("連線發生錯誤，請稍後再試。"); } finally { hideLoading(); }
         }
 
         // --- 💾 送出點名邏輯 ---
@@ -315,19 +332,12 @@
 
             showLoading("正在存入點名資料，請勿關閉網頁...");
             try {
-                const res = await callAPI('submitAttendance', {
-                    groupName, date, present, absent, newFriends
-                });
+                const res = await callAPI('submitAttendance', { groupName, date, present, absent, newFriends });
                 if (res.success) {
                     alert('點名成功！');
-                    // 點名完成後，重新載入整個頁面，這樣下方的歷史進度表就會立刻出現剛剛那筆資料
                     location.reload();
-                } else {
-                    alert('失敗：' + res.message);
-                }
-            } finally {
-                hideLoading();
-            }
+                } else { alert('失敗：' + res.message); }
+            } finally { hideLoading(); }
         }
     </script>
 </body>
