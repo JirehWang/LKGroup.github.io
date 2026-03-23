@@ -9,39 +9,10 @@
         :root { --primary-color: #4CAF50; --admin-color: #2196F3; --create-color: #FF9800; }
         
         /* --- 全域遮罩樣式 --- */
-        #loading-overlay {
-            display: none;
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(255, 255, 255, 0.85);
-            z-index: 9999;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            backdrop-filter: blur(3px);
-        }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid #3498db;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .loading-msg {
-            margin-top: 15px;
-            color: #333;
-            font-weight: bold;
-            font-size: 16px;
-        }
+        #loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.85); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(3px); }
+        .spinner { width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-msg { margin-top: 15px; color: #333; font-weight: bold; font-size: 16px; }
 
         /* --- 原有樣式 --- */
         body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 20px; max-width: 900px; margin: auto; background-color: #f5f7f9; }
@@ -91,8 +62,6 @@
     <script>
         const API_URL = 'https://script.google.com/macros/s/AKfycbzfaWh_ooRTGijLV_7lYFUHFm83oL6DvYt9rt6ze5mDXhtwLv8ymxLX_PGuDTHzmNwe/exec';
 
-        window.onload = fetchGroups;
-
         // --- Loading 控制函式 ---
         function showLoading(msg = "處理中...") {
             document.getElementById('overlay-text').innerText = msg;
@@ -103,6 +72,43 @@
             document.getElementById('loading-overlay').style.display = 'none';
         }
 
+        // 🚀 網頁載入初始化邏輯 (包含專屬連結攔截)
+        window.onload = async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const queryId = urlParams.get('id');
+            
+            // 如果網址帶有 ?id=代碼
+            if (queryId) {
+                showLoading("正在驗證專屬連結...");
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({ action: 'findGroupByCode', data: { groupCode: queryId } }),
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+                    });
+                    const res = await response.json();
+                    
+                    if (res.success) {
+                        // 驗證成功，直接跳轉到該小組的點名頁面，並帶上名稱與代碼
+                        document.getElementById('overlay-text').innerText = "進入專屬小組中...";
+                        window.location.href = `group.html?name=${encodeURIComponent(res.groupName)}&code=${encodeURIComponent(queryId)}`;
+                    } else {
+                        alert("專屬連結無效或代碼錯誤！");
+                        hideLoading();
+                        fetchGroups(); // 若失敗，則載入正常首頁清單
+                    }
+                } catch (e) {
+                    alert("驗證連結時發生錯誤。");
+                    hideLoading();
+                    fetchGroups();
+                }
+            } else {
+                // 沒有帶 id，正常載入首頁的小組清單
+                fetchGroups(); 
+            }
+        };
+
+        // 載入小組按鈕清單
         async function fetchGroups() {
             showLoading("正在獲取最新小組清單...");
             const container = document.getElementById('group-list-container');
@@ -141,6 +147,7 @@
             document.getElementById('createModal').style.display = show ? 'block' : 'none';
         }
 
+        // 建立新小組
         async function createNewGroup() {
             const name = document.getElementById('newGroupName').value;
             const code = document.getElementById('newGroupCode').value;
@@ -166,35 +173,33 @@
             }
         }
 
+        // 💡 手動點擊進入小組 (優化：同時傳遞 code 給 group.html)
         async function enterGroup(groupName) {
-    const code = prompt(`請輸入【${groupName}】的小組編號：`);
-    if (code === null) return;
+            const code = prompt(`請輸入【${groupName}】的小組編號：`);
+            if (code === null) return;
 
-    showLoading(`正在驗證【${groupName}】的身分...`);
-    
-    try {
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'verifyGroup', data: { groupName, groupCode: code } }),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-        });
-        const res = await response.json();
-        
-        if (res.success) {
-            // 💡 關鍵優化：驗證成功後，不呼叫 hideLoading()
-            // 直接更改 Loading 文字，讓使用者知道正在跳轉
-            document.getElementById('overlay-text').innerText = "驗證成功，進入小組中...";
-            window.location.href = `group.html?name=${encodeURIComponent(groupName)}`;
-        } else {
-            hideLoading(); // 只有失敗才隱藏遮罩，讓使用者看錯誤訊息
-            alert(res.message);
-        }
-    } catch (e) {
-        hideLoading();
-        alert("驗證時發生網路錯誤。");
-    }
-    // ⚠️ 注意：不要在這裡放 finally { hideLoading(); } 
-    // 因為跳轉是需要時間的，我們要讓遮罩一直遮到新頁面蓋過它為止    }
+            showLoading(`正在驗證【${groupName}】的身分...`);
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'verifyGroup', data: { groupName, groupCode: code } }),
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+                });
+                const res = await response.json();
+                
+                if (res.success) {
+                    // 驗證成功，不隱藏 Loading，直接換文字並跳轉
+                    document.getElementById('overlay-text').innerText = "驗證成功，進入小組中...";
+                    window.location.href = `group.html?name=${encodeURIComponent(groupName)}&code=${encodeURIComponent(code)}`;
+                } else {
+                    hideLoading(); 
+                    alert(res.message);
+                }
+            } catch (e) {
+                hideLoading();
+                alert("驗證時發生網路錯誤。");
+            }
         }
     </script>
 </body>
