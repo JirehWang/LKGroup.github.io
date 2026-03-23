@@ -3,42 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>小組點名 - 進行中</title>
+    <title>小組點名與進度</title>
     <style>
         /* --- 全域遮罩樣式 --- */
-        #loading-overlay {
-            display: none;
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(255, 255, 255, 0.85);
-            z-index: 9999;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            backdrop-filter: blur(3px);
-        }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid #3498db;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .loading-msg {
-            margin-top: 15px;
-            color: #333;
-            font-weight: bold;
-            font-size: 16px;
-        }
+        #loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.85); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(3px); }
+        .spinner { width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-msg { margin-top: 15px; color: #333; font-weight: bold; font-size: 16px; }
 
         /* --- 原有樣式 --- */
         body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; background-color: #f8f9fa; }
@@ -46,10 +17,10 @@
         .member-item { display: flex; align-items: center; padding: 10px; border-bottom: 1px dashed #ccc; background: white; }
         .member-item input[type="checkbox"] { transform: scale(1.5); margin-right: 15px; }
         .btn { padding: 10px 20px; cursor: pointer; border: none; border-radius: 4px; color: white; margin-top: 10px; font-weight: bold; }
-        .btn-save { background-color: #2196F3; width: 100%; font-size: 18px; }
+        .btn-save { background-color: #2196F3; width: 100%; font-size: 18px; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(33,150,243,0.3); }
         .btn-init { background-color: #f44336; }
         .btn-edit { background-color: #607D8B; font-size: 14px; margin-bottom: 10px; }
-        .new-friend { margin-top: 20px; padding: 10px; background: #f9f9f9; border-radius: 5px; border: 1px solid #eee; }
+        .new-friend { margin-top: 20px; padding: 15px; background: #fff3e0; border-radius: 8px; border: 1px solid #ffe0b2; margin-bottom: 15px; }
         #init-panel { text-align: center; margin-top: 50px; display: none; }
         #attendance-panel { display: none; }
         
@@ -63,8 +34,15 @@
         .edit-list-container { max-height: 350px; overflow-y: auto; border: 1px solid #eee; border-radius: 6px; padding: 5px; background: #fafafa; }
         .edit-member-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; background: white; margin-bottom: 5px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .btn-remove { background: #ffebee; color: #c62828; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px; font-weight: bold; transition: 0.2s; }
-        .btn-remove:hover { background: #ffcdd2; }
-        .empty-hint { text-align: center; color: #999; padding: 30px 20px; font-size: 14px; }
+
+        /* --- 📊 小組進度表專用樣式 --- */
+        .progress-section { margin-top: 40px; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .progress-section h3 { margin-top: 0; color: #333; border-bottom: 2px solid #4CAF50; padding-bottom: 10px; display: inline-block; }
+        .table-wrapper { max-height: 400px; overflow-y: auto; margin-top: 10px; border-radius: 6px; border: 1px solid #eee; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th { background: #4CAF50; color: white; padding: 10px; position: sticky; top: 0; z-index: 1; }
+        td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
+        tr:nth-child(even) { background: #fafafa; }
     </style>
 </head>
 <body>
@@ -76,7 +54,7 @@
 
     <div class="header">
         <h2 id="displayGroupName">載入中...</h2>
-        <a href="index.html" style="text-decoration: none; color: #666;">⬅️ 返回</a>
+        <a href="index.html" style="text-decoration: none; color: #666; font-weight: bold;">⬅️ 返回首頁</a>
     </div>
 
     <div id="init-panel">
@@ -87,20 +65,38 @@
 
     <div id="attendance-panel">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-            <div style="margin: 15px 0;">
-                日期：<input type="date" id="attendanceDate">
+            <div style="margin: 15px 0; font-weight: bold; color: #333;">
+                📅 聚會日期：<input type="date" id="attendanceDate" style="padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
             </div>
-            <button class="btn btn-edit" onclick="toggleEditMode()">📝 編輯成員</button>
+            <button class="btn btn-edit" onclick="toggleEditMode()">📝 管理名單</button>
         </div>
         
-        <div id="memberList"></div>
+        <div id="memberList" style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden;"></div>
 
         <div class="new-friend">
-            <h4>➕ 新朋友 (如有請輸入，多位請用逗號隔開)</h4>
-            <input type="text" id="newFriends" style="width:95%; padding:8px; border: 1px solid #ddd; border-radius: 4px;" placeholder="例如：張三, 李四">
+            <h4 style="margin-top: 0; color: #e65100;">✨ 新朋友 (若有請輸入，多位請用逗號隔開)</h4>
+            <input type="text" id="newFriends" style="width:95%; padding:10px; border: 1px solid #ffcc80; border-radius: 4px;" placeholder="例如：張三, 李四">
         </div>
 
-        <button class="btn btn-save" onclick="submitAttendance()">💾 送出點名結果</button>
+        <button class="btn btn-save" onclick="submitAttendance()">💾 送出今日點名</button>
+
+        <div class="progress-section" id="progressSection" style="display: none;">
+            <h3>📊 近期聚會紀錄</h3>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 25%;">日期</th>
+                            <th style="width: 20%;">實到</th>
+                            <th style="width: 55%; text-align: left;">出席摘要</th>
+                        </tr>
+                    </thead>
+                    <tbody id="progressTableBody">
+                        <tr><td colspan="3" style="color: #666;">資料載入中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <div id="edit-modal" class="modal">
@@ -112,8 +108,7 @@
                 <button class="btn-add" onclick="addEditMember()">➕ 新增</button>
             </div>
 
-            <div class="edit-list-container" id="editMemberList">
-                </div>
+            <div class="edit-list-container" id="editMemberList"></div>
 
             <div style="display: flex; justify-content: space-between; margin-top: 20px;">
                 <button class="btn" onclick="toggleEditMode()" style="background: #9e9e9e;">取消</button>
@@ -126,16 +121,16 @@
         const API_URL = 'https://script.google.com/macros/s/AKfycbzfaWh_ooRTGijLV_7lYFUHFm83oL6DvYt9rt6ze5mDXhtwLv8ymxLX_PGuDTHzmNwe/exec'; 
         const urlParams = new URLSearchParams(window.location.search);
         const groupName = urlParams.get('name');
+        const groupCode = urlParams.get('code'); // 接收專屬連結帶來的代碼
         
         let currentMembers = []; 
-        let editingMembers = []; // 新增暫存名單陣列
+        let editingMembers = []; 
 
         document.getElementById('displayGroupName').innerText = groupName || '未知名組別';
         document.getElementById('attendanceDate').valueAsDate = new Date();
 
         window.onload = checkGroupStatus;
 
-        // --- Loading 控制 ---
         function showLoading(msg = "處理中...") {
             document.getElementById('overlay-text').innerText = msg;
             document.getElementById('loading-overlay').style.display = 'flex';
@@ -154,18 +149,64 @@
         }
 
         async function checkGroupStatus() {
-            showLoading("正在讀取名單狀態...");
+            showLoading("正在載入點名單與聚會紀錄...");
             try {
                 const res = await callAPI('checkGroupStatus', { groupName });
                 if (res.isInitialized) {
                     currentMembers = res.members;
                     document.getElementById('attendance-panel').style.display = 'block';
                     renderMemberList(res.members);
+                    
+                    // 若有代碼，則自動載入下方歷史進度表
+                    if (groupCode) {
+                        await loadGroupProgress();
+                    }
                 } else {
                     document.getElementById('init-panel').style.display = 'block';
                 }
             } finally {
                 hideLoading();
+            }
+        }
+
+        // --- 📊 渲染歷史進度表邏輯 ---
+        async function loadGroupProgress() {
+            const tbody = document.getElementById('progressTableBody');
+            document.getElementById('progressSection').style.display = 'block';
+
+            try {
+                // 呼叫 getStats，日期留白代表抓取全歷史
+                const res = await callAPI('getStats', { groupName: groupName, groupCode: groupCode, startDate: "", endDate: "" });
+                
+                if (res.success && res.data.length > 0) {
+                    const reversedData = res.data.slice().reverse(); // 最新日期排最上面
+                    
+                    tbody.innerHTML = reversedData.map(row => {
+                        const dateObj = new Date(row[0]);
+                        const dateStr = `${dateObj.getMonth() + 1}/${dateObj.getDate()}`; 
+                        
+                        const present = row[1] ? row[1].toString().split(/[,，]/).map(s=>s.trim()).filter(n=>n) : [];
+                        const newFriends = row[3] ? row[3].toString().split(/[,，]/).map(s=>s.trim()).filter(n=>n) : [];
+                        const totalCount = present.length + newFriends.length;
+                        
+                        let namesHtml = present.join('、');
+                        if (newFriends.length > 0) {
+                            namesHtml += ` <span style="color:#ef6c00; font-size:12px; font-weight:bold;">(+新朋友: ${newFriends.join('、')})</span>`;
+                        }
+
+                        return `
+                            <tr>
+                                <td><span style="background: #e3f2fd; padding: 3px 8px; border-radius: 12px; font-weight: bold; font-size: 12px;">${dateStr}</span></td>
+                                <td style="font-weight: bold; font-size: 16px;">${totalCount} 人</td>
+                                <td style="text-align: left; font-size: 13px; color: #555;">${namesHtml || '無出席紀錄'}</td>
+                            </tr>
+                        `;
+                    }).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="3" style="color: #999; padding: 20px;">目前尚無聚會紀錄</td></tr>';
+                }
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="3" style="color: red;">讀取紀錄失敗，請重新整理</td></tr>';
             }
         }
 
@@ -176,14 +217,9 @@
             showLoading("正在建立雲端分頁，這可能需要幾秒鐘...");
             try {
                 const res = await callAPI('initGroup', { groupName, members });
-                if (res.success) {
-                    location.reload();
-                } else {
-                    alert(res.message);
-                }
-            } finally {
-                hideLoading();
-            }
+                if (res.success) { location.reload(); } 
+                else { alert(res.message); }
+            } finally { hideLoading(); }
         }
 
         function renderMemberList(members) {
@@ -191,18 +227,17 @@
             list.innerHTML = members.map(name => `
                 <div class="member-item">
                     <input type="checkbox" class="attendance-check" value="${name}">
-                    <span>${name}</span>
+                    <span style="font-size: 16px;">${name}</span>
                 </div>
             `).join('');
         }
 
-        // --- 📝 新版編輯名單邏輯 ---
+        // --- 📝 編輯名單邏輯 ---
         function toggleEditMode() {
             const modal = document.getElementById('edit-modal');
             if (modal.style.display === 'block') {
                 modal.style.display = 'none';
             } else {
-                // 開啟時複製目前名單至暫存區
                 editingMembers = [...currentMembers];
                 document.getElementById('newMemberInput').value = ""; 
                 renderEditList();
@@ -216,7 +251,6 @@
                 container.innerHTML = '<div class="empty-hint">目前名單為空</div>';
                 return;
             }
-
             container.innerHTML = editingMembers.map((name, index) => `
                 <div class="edit-member-item">
                     <span>👤 ${name}</span>
@@ -233,8 +267,8 @@
             if (editingMembers.includes(newName)) return alert("此人已經在名單中了！");
 
             editingMembers.push(newName);
-            input.value = ""; // 清空輸入框
-            renderEditList(); // 重新渲染列表
+            input.value = ""; 
+            renderEditList(); 
         }
 
         function removeEditMember(index) {
@@ -267,8 +301,8 @@
                 hideLoading();
             }
         }
-        // -----------------------------
 
+        // --- 💾 送出點名邏輯 ---
         async function submitAttendance() {
             const date = document.getElementById('attendanceDate').value;
             const present = Array.from(document.querySelectorAll('.attendance-check:checked')).map(cb => cb.value);
@@ -286,7 +320,8 @@
                 });
                 if (res.success) {
                     alert('點名成功！');
-                    window.location.href = 'index.html';
+                    // 點名完成後，重新載入整個頁面，這樣下方的歷史進度表就會立刻出現剛剛那筆資料
+                    location.reload();
                 } else {
                     alert('失敗：' + res.message);
                 }
