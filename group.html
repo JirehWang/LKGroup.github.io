@@ -45,8 +45,9 @@
         td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
         tr:nth-child(even) { background: #fafafa; }
         
-        .share-link-btn { color: #2196F3; cursor: pointer; font-size: 13px; font-weight: bold; margin-top: 5px; display: inline-block; padding: 4px 8px; background: #e3f2fd; border-radius: 4px; }
-        .share-link-btn:active { background: #bbdefb; }
+        /* 跳轉按鈕樣式 */
+        .schedule-link-btn { color: #1976D2; cursor: pointer; font-size: 13px; font-weight: bold; margin-top: 5px; display: inline-block; padding: 5px 10px; background: #e3f2fd; border-radius: 6px; border: 1px solid #bbdefb; transition: 0.2s; }
+        .schedule-link-btn:hover { background: #bbdefb; }
     </style>
 </head>
 <body>
@@ -59,7 +60,7 @@
     <div class="header">
         <div>
             <h2 id="displayGroupName" style="margin: 0;">載入中...</h2>
-            <div id="shareLinkBtn" class="share-link-btn" style="display: none;" onclick="copyShareLink()">🔗 複製專屬點名連結</div>
+            <div id="scheduleBtn" class="schedule-link-btn" style="display: none;" onclick="goToSchedule()">🗓️ 前往排聚會表</div>
         </div>
         <a href="index.html" style="text-decoration: none; color: #666; font-weight: bold;">⬅️ 返回首頁</a>
     </div>
@@ -167,8 +168,9 @@
                     document.getElementById('attendance-panel').style.display = 'block';
                     renderMemberList(res.members);
                     
+                    // 若網址帶有密碼(code)，顯示跳轉按鈕並載入近期紀錄
                     if (groupCode) {
-                        document.getElementById('shareLinkBtn').style.display = 'inline-block';
+                        document.getElementById('scheduleBtn').style.display = 'inline-block';
                         await loadGroupProgress();
                     }
                 } else {
@@ -179,21 +181,16 @@
             }
         }
 
-        // --- 🔗 複製專屬連結與跳轉統計 ---
-        function copyShareLink() {
-            if (!groupCode) return alert("未取得小組編號，無法產生連結。");
-            const shareUrl = `https://jirehwang.github.io/LKC1958_June_1.github.io/?id=${groupCode}`;
-            
-            navigator.clipboard.writeText(shareUrl).then(() => {
-                alert("✅ 專屬連結已複製！可直接貼上並傳送給組員或自行收藏。");
-            }).catch(() => {
-                prompt("您的瀏覽器不支援自動複製，請手動複製以下連結：", shareUrl);
-            });
+        // --- 🔗 跳轉相關函式 ---
+        function goToSchedule() {
+            if (!groupCode) return alert("未取得小組編號，無法跳轉。");
+            // 開啟新分頁跳轉到排聚會表，避免遺失點名進度
+            window.open(`https://jirehwang.github.io/LKC1958_June_1.github.io/?id=${groupCode}`, '_blank');
         }
 
         function goToFullStats() {
-            // 跳轉至外部的 LKGroup.github.io 統計中心，並帶上代碼
-            window.location.href = `https://jirehwang.github.io/LKGroup.github.io/stats.html?id=${groupCode || ''}`;
+            // 開啟新分頁跳轉至外部統計中心
+            window.open(`https://jirehwang.github.io/LKGroup.github.io/stats.html?id=${groupCode || ''}`, '_blank');
         }
 
         // --- 📊 渲染近期進度表邏輯 (只取3筆) ---
