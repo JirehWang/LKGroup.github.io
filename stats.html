@@ -275,9 +275,13 @@
                 tbody.innerHTML = res.members.map(m => `<tr><td>${m.name}</td><td>${m.group}</td><td style="color:green; font-weight:bold;">V</td></tr>`).join('');
             } else {
                 thead.innerHTML = `<tr><th>姓名</th><th>小組</th><th>總聚會次數</th><th>出席次數</th><th>出席率</th></tr>`;
-                const total = res.dates.length;
+                
                 tbody.innerHTML = res.members.map(m => {
                     const count = Object.keys(m.attendance).length;
+                    
+                    // 💡 關鍵修改：從後端傳來的 groupSessions 裡面，抓取「該小組專屬」的總次數
+                    const total = res.groupSessions[m.group] || 0;
+                    
                     const rate = total > 0 ? ((count/total)*100).toFixed(1) : 0;
                     return `<tr><td>${m.name}</td><td>${m.group}</td><td>${total}</td><td>${count}</td><td>${rate}%</td></tr>`;
                 }).join('');
