@@ -14,7 +14,7 @@
         /* --- 原有樣式 --- */
         body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; background-color: #f8f9fa; }
         .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        .member-item { display: flex; align-items: center; padding: 10px; border-bottom: 1px dashed #ccc; background: white; }
+        .member-item { display: flex; align-items: center; padding: 12px 10px; border-bottom: 1px dashed #ccc; background: white; }
         .member-item input[type="checkbox"] { transform: scale(1.5); margin-right: 15px; }
         .btn { padding: 10px 20px; cursor: pointer; border: none; border-radius: 4px; color: white; margin-top: 10px; font-weight: bold; }
         .btn-save { background-color: #2196F3; width: 100%; font-size: 18px; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(33,150,243,0.3); }
@@ -28,12 +28,20 @@
         .modal-content { background: white; width: 90%; max-width: 450px; margin: 40px auto; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
 
         /* --- 📝 編輯名單專用樣式 --- */
-        .edit-add-box { display: flex; gap: 10px; margin-bottom: 15px; }
-        .edit-add-box input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
-        .btn-add { background: #FF9800; color: white; border: none; padding: 0 15px; border-radius: 6px; cursor: pointer; font-weight: bold; white-space: nowrap; }
+        .edit-add-box { display: flex; gap: 8px; margin-bottom: 15px; align-items: center; }
+        .edit-add-box input { flex: 2; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+        .edit-role-select { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; background: white; }
+        .btn-add { background: #FF9800; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; white-space: nowrap; }
         .edit-list-container { max-height: 350px; overflow-y: auto; border: 1px solid #eee; border-radius: 6px; padding: 5px; background: #fafafa; }
         .edit-member-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; background: white; margin-bottom: 5px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .btn-remove { background: #ffebee; color: #c62828; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px; font-weight: bold; transition: 0.2s; }
+
+        /* --- 🎯 身分標籤專用樣式 --- */
+        .role-badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-right: 10px; display: inline-block; width: 55px; text-align: center; }
+        .role-core { background: #ffebee; color: #c62828; }    /* 核心同工：紅色系 */
+        .role-general { background: #e3f2fd; color: #1565c0; } /* 一般同工：藍色系 */
+        .role-sheep { background: #e8f5e9; color: #2e7d32; }   /* 小羊：綠色系 */
+        .role-default { background: #f5f5f5; color: #757575; }
 
         /* --- 📊 小組進度表專用樣式 --- */
         .progress-section { margin-top: 40px; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
@@ -68,7 +76,7 @@
     <div id="init-panel">
         <p>偵測到此小組尚未建立成員名單。</p>
         <textarea id="memberInput" rows="10" style="width:100%; box-sizing: border-box; padding: 10px;" placeholder="請輸入成員姓名，一個姓名換一行..."></textarea>
-        <button class="btn btn-init" onclick="initGroup()">🚀 建立成員名單</button>
+        <button class="btn btn-init" onclick="initGroup()">🚀 建立成員名單 (預設為小羊)</button>
     </div>
 
     <div id="attendance-panel">
@@ -76,7 +84,7 @@
             <div style="margin: 15px 0; font-weight: bold; color: #333;">
                 📅 聚會日期：<input type="date" id="attendanceDate" style="padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
             </div>
-            <button class="btn btn-edit" onclick="toggleEditMode()">📝 管理名單</button>
+            <button class="btn btn-edit" onclick="toggleEditMode()">📝 管理名單與身分</button>
         </div>
         
         <div id="memberList" style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden;"></div>
@@ -112,10 +120,15 @@
 
     <div id="edit-modal" class="modal">
         <div class="modal-content">
-            <h3 style="margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; color: #333;">📝 管理小組名單</h3>
+            <h3 style="margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; color: #333;">📝 管理名單與身分</h3>
             
             <div class="edit-add-box">
-                <input type="text" id="newMemberInput" placeholder="輸入單一成員姓名" onkeypress="if(event.key==='Enter') addEditMember()">
+                <input type="text" id="newMemberInput" placeholder="新增姓名" onkeypress="if(event.key==='Enter') addEditMember()">
+                <select id="newMemberRole" class="edit-role-select">
+                    <option value="小羊">小羊</option>
+                    <option value="一般同工">一般同工</option>
+                    <option value="核心同工">核心同工</option>
+                </select>
                 <button class="btn-add" onclick="addEditMember()">➕ 新增</button>
             </div>
 
@@ -159,6 +172,23 @@
             return await response.json();
         }
 
+        // --- 🎯 身分解析輔助函式 ---
+        function parseMember(memberStr) {
+            // 將「張三|核心同工」拆解
+            const parts = memberStr.split('|');
+            return {
+                name: parts[0].trim(),
+                role: parts.length > 1 ? parts[1].trim() : '小羊' // 若無標籤，預設為小羊 (相容舊資料)
+            };
+        }
+
+        function getRoleClass(role) {
+            if (role === '核心同工') return 'role-core';
+            if (role === '一般同工') return 'role-general';
+            if (role === '小羊') return 'role-sheep';
+            return 'role-default';
+        }
+
         async function checkGroupStatus() {
             showLoading("正在載入點名單與聚會紀錄...");
             try {
@@ -168,7 +198,6 @@
                     document.getElementById('attendance-panel').style.display = 'block';
                     renderMemberList(res.members);
                     
-                    // 若網址帶有密碼(code)，顯示跳轉按鈕並載入近期紀錄
                     if (groupCode) {
                         document.getElementById('scheduleBtn').style.display = 'inline-block';
                         await loadGroupProgress();
@@ -181,19 +210,15 @@
             }
         }
 
-        // --- 🔗 跳轉相關函式 ---
         function goToSchedule() {
             if (!groupCode) return alert("未取得小組編號，無法跳轉。");
-            // 開啟新分頁跳轉到排聚會表，避免遺失點名進度
             window.open(`https://jirehwang.github.io/LKC1958_June_1.github.io/?id=${groupCode}`, '_blank');
         }
 
         function goToFullStats() {
-            // 開啟新分頁跳轉至外部統計中心
             window.open(`https://jirehwang.github.io/LKGroup.github.io/stats.html?id=${groupCode || ''}`, '_blank');
         }
 
-        // --- 📊 渲染近期進度表邏輯 (只取3筆) ---
         async function loadGroupProgress() {
             const tbody = document.getElementById('progressTableBody');
             document.getElementById('progressSection').style.display = 'block';
@@ -202,7 +227,6 @@
                 const res = await callAPI('getStats', { groupName: groupName, groupCode: groupCode, startDate: "", endDate: "" });
                 
                 if (res.success && res.data.length > 0) {
-                    // 反轉陣列並使用 .slice(0, 3) 只截取最新 3 筆
                     const latestData = res.data.slice().reverse().slice(0, 3); 
                     
                     tbody.innerHTML = latestData.map(row => {
@@ -235,8 +259,12 @@
         }
 
         async function initGroup() {
-            const members = document.getElementById('memberInput').value.split('\n').filter(n => n.trim());
-            if (members.length === 0) return alert('請輸入名單');
+            const rawMembers = document.getElementById('memberInput').value.split('\n').filter(n => n.trim());
+            if (rawMembers.length === 0) return alert('請輸入名單');
+            
+            // 初始化時，自動為所有人加上預設標籤 "|小羊"
+            const members = rawMembers.map(name => `${name.trim()}|小羊`);
+
             showLoading("正在建立雲端分頁，這可能需要幾秒鐘...");
             try {
                 const res = await callAPI('initGroup', { groupName, members });
@@ -247,15 +275,23 @@
 
         function renderMemberList(members) {
             const list = document.getElementById('memberList');
-            list.innerHTML = members.map(name => `
-                <div class="member-item">
-                    <input type="checkbox" class="attendance-check" value="${name}">
-                    <span style="font-size: 16px;">${name}</span>
-                </div>
-            `).join('');
+            
+            // 解析名單並渲染，保留原本的順序
+            list.innerHTML = members.map(memberStr => {
+                const { name, role } = parseMember(memberStr);
+                const roleClass = getRoleClass(role);
+                
+                return `
+                    <div class="member-item">
+                        <input type="checkbox" class="attendance-check" value="${name}">
+                        <span class="role-badge ${roleClass}">${role}</span>
+                        <span style="font-size: 16px; font-weight: bold; color: #333;">${name}</span>
+                    </div>
+                `;
+            }).join('');
         }
 
-        // --- 📝 編輯名單邏輯 ---
+        // --- 📝 編輯名單邏輯 (支援狀態切換) ---
         function toggleEditMode() {
             const modal = document.getElementById('edit-modal');
             if (modal.style.display === 'block') {
@@ -274,27 +310,50 @@
                 container.innerHTML = '<div class="empty-hint">目前名單為空</div>';
                 return;
             }
-            container.innerHTML = editingMembers.map((name, index) => `
-                <div class="edit-member-item">
-                    <span>👤 ${name}</span>
-                    <button class="btn-remove" onclick="removeEditMember(${index})">🗑️ 移除</button>
-                </div>
-            `).join('');
+            container.innerHTML = editingMembers.map((memberStr, index) => {
+                const { name, role } = parseMember(memberStr);
+                return `
+                    <div class="edit-member-item">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-weight:bold; width: 60px; overflow: hidden; text-overflow: ellipsis;">${name}</span>
+                            <select class="edit-role-select" onchange="updateMemberRole(${index}, this.value)">
+                                <option value="核心同工" ${role==='核心同工'?'selected':''}>核心同工</option>
+                                <option value="一般同工" ${role==='一般同工'?'selected':''}>一般同工</option>
+                                <option value="小羊" ${role==='小羊'?'selected':''}>小羊</option>
+                            </select>
+                        </div>
+                        <button class="btn-remove" onclick="removeEditMember(${index})">🗑️ 移除</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 當使用者在彈窗中切換狀態時更新暫存
+        function updateMemberRole(index, newRole) {
+            const { name } = parseMember(editingMembers[index]);
+            editingMembers[index] = `${name}|${newRole}`;
         }
 
         function addEditMember() {
             const input = document.getElementById('newMemberInput');
+            const roleSelect = document.getElementById('newMemberRole');
             const newName = input.value.trim();
+            const newRole = roleSelect.value;
+            
             if (!newName) return alert("請輸入要新增的姓名！");
-            if (editingMembers.includes(newName)) return alert("此人已經在名單中了！");
-            editingMembers.push(newName);
+            
+            // 檢查重複 (只核對名字，不核對身分)
+            const exists = editingMembers.some(m => parseMember(m).name === newName);
+            if (exists) return alert("此人已經在名單中了！");
+
+            editingMembers.push(`${newName}|${newRole}`);
             input.value = ""; 
             renderEditList(); 
         }
 
         function removeEditMember(index) {
-            const nameToRemove = editingMembers[index];
-            if (confirm(`確定要將【${nameToRemove}】從名單中移除嗎？`)) {
+            const { name } = parseMember(editingMembers[index]);
+            if (confirm(`確定要將【${name}】從名單中移除嗎？`)) {
                 editingMembers.splice(index, 1);
                 renderEditList();
             }
@@ -308,6 +367,7 @@
             }
             showLoading("正在更新雲端名單...");
             try {
+                // 將帶有狀態的陣列 (ex: ["張三|核心同工"]) 送去覆蓋舊名單
                 const res = await callAPI('updateMemberList', { groupName, members: editingMembers });
                 if (res.success) {
                     alert('名單更新成功！');
@@ -319,6 +379,8 @@
         // --- 💾 送出點名邏輯 ---
         async function submitAttendance() {
             const date = document.getElementById('attendanceDate').value;
+            
+            // ⚠️ 這裡抓取的 cb.value 只有「名字」，不會把身分一起存入點名紀錄中
             const present = Array.from(document.querySelectorAll('.attendance-check:checked')).map(cb => cb.value);
             const absent = Array.from(document.querySelectorAll('.attendance-check:not(:checked)')).map(cb => cb.value);
             const newFriends = document.getElementById('newFriends').value;
