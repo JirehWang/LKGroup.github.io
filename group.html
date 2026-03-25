@@ -147,7 +147,7 @@
         const groupName = urlParams.get('name');
         const groupCode = urlParams.get('code'); 
         
-        let currentMembers = []; 
+        let currentMembers = []; // 格式為: [{name: '張三', role: '小羊'}]
         let editingMembers = []; 
 
         document.getElementById('displayGroupName').innerText = groupName || '未知名組別';
@@ -172,16 +172,6 @@
             return await response.json();
         }
 
-        // --- 🎯 身分解析輔助函式 ---
-        function parseMember(memberStr) {
-            // 將「張三|核心同工」拆解
-            const parts = memberStr.split('|');
-            return {
-                name: parts[0].trim(),
-                role: parts.length > 1 ? parts[1].trim() : '小羊' // 若無標籤，預設為小羊 (相容舊資料)
-            };
-        }
-
         function getRoleClass(role) {
             if (role === '核心同工') return 'role-core';
             if (role === '一般同工') return 'role-general';
@@ -194,7 +184,7 @@
             try {
                 const res = await callAPI('checkGroupStatus', { groupName });
                 if (res.isInitialized) {
-                    currentMembers = res.members;
+                    currentMembers = res.members; // 直接接收後端傳來的物件陣列
                     document.getElementById('attendance-panel').style.display = 'block';
                     renderMemberList(res.members);
                     
@@ -262,8 +252,8 @@
             const rawMembers = document.getElementById('memberInput').value.split('\n').filter(n => n.trim());
             if (rawMembers.length === 0) return alert('請輸入名單');
             
-            // 初始化時，自動為所有人加上預設標籤 "|小羊"
-            const members = rawMembers.map(name => `${name.trim()}|小羊`);
+            // 初始化時轉為物件陣列，預設寫入小羊
+            const members = rawMembers.map(name => ({ name: name.trim(), role: '小羊' }));
 
             showLoading("正在建立雲端分頁，這可能需要幾秒鐘...");
             try {
@@ -276,28 +266,27 @@
         function renderMemberList(members) {
             const list = document.getElementById('memberList');
             
-            // 解析名單並渲染，保留原本的順序
-            list.innerHTML = members.map(memberStr => {
-                const { name, role } = parseMember(memberStr);
-                const roleClass = getRoleClass(role);
-                
+            // 直接讀取物件的 m.name 與 m.role
+            list.innerHTML = members.map(m => {
+                const roleClass = getRoleClass(m.role);
                 return `
                     <div class="member-item">
-                        <input type="checkbox" class="attendance-check" value="${name}">
-                        <span class="role-badge ${roleClass}">${role}</span>
-                        <span style="font-size: 16px; font-weight: bold; color: #333;">${name}</span>
+                        <input type="checkbox" class="attendance-check" value="${m.name}">
+                        <span class="role-badge ${roleClass}">${m.role}</span>
+                        <span style="font-size: 16px; font-weight: bold; color: #333;">${m.name}</span>
                     </div>
                 `;
             }).join('');
         }
 
-        // --- 📝 編輯名單邏輯 (支援狀態切換) ---
+        // --- 📝 編輯名單邏輯 (以物件結構處理) ---
         function toggleEditMode() {
             const modal = document.getElementById('edit-modal');
             if (modal.style.display === 'block') {
                 modal.style.display = 'none';
             } else {
-                editingMembers = [...currentMembers];
+                // 深拷貝物件陣列，避免直接修改到 currentMembers
+                editingMembers = currentMembers.map(m => ({...m}));
                 document.getElementById('newMemberInput').value = ""; 
                 renderEditList();
                 modal.style.display = 'block';
@@ -310,16 +299,15 @@
                 container.innerHTML = '<div class="empty-hint">目前名單為空</div>';
                 return;
             }
-            container.innerHTML = editingMembers.map((memberStr, index) => {
-                const { name, role } = parseMember(memberStr);
+            container.innerHTML = editingMembers.map((m, index) => {
                 return `
                     <div class="edit-member-item">
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="font-weight:bold; width: 60px; overflow: hidden; text-overflow: ellipsis;">${name}</span>
+                            <span style="font-weight:bold; width: 60px; overflow: hidden; text-overflow: ellipsis;">${m.name}</span>
                             <select class="edit-role-select" onchange="updateMemberRole(${index}, this.value)">
-                                <option value="核心同工" ${role==='核心同工'?'selected':''}>核心同工</option>
-                                <option value="一般同工" ${role==='一般同工'?'selected':''}>一般同工</option>
-                                <option value="小羊" ${role==='小羊'?'selected':''}>小羊</option>
+                                <option value="核心同工" ${m.role==='核心同工'?'selected':''}>核心同工</option>
+                                <option value="一般同工" ${m.role==='一般同工'?'selected':''}>一般同工</option>
+                                <option value="小羊" ${m.role==='小羊'?'selected':''}>小羊</option>
                             </select>
                         </div>
                         <button class="btn-remove" onclick="removeEditMember(${index})">🗑️ 移除</button>
@@ -328,10 +316,8 @@
             }).join('');
         }
 
-        // 當使用者在彈窗中切換狀態時更新暫存
         function updateMemberRole(index, newRole) {
-            const { name } = parseMember(editingMembers[index]);
-            editingMembers[index] = `${name}|${newRole}`;
+            editingMembers[index].role = newRole; // 直接更新物件中的 role
         }
 
         function addEditMember() {
@@ -342,18 +328,18 @@
             
             if (!newName) return alert("請輸入要新增的姓名！");
             
-            // 檢查重複 (只核對名字，不核對身分)
-            const exists = editingMembers.some(m => parseMember(m).name === newName);
+            // 檢查是否重複 (核對物件的 name 屬性)
+            const exists = editingMembers.some(m => m.name === newName);
             if (exists) return alert("此人已經在名單中了！");
 
-            editingMembers.push(`${newName}|${newRole}`);
+            editingMembers.push({ name: newName, role: newRole }); // 推入新物件
             input.value = ""; 
             renderEditList(); 
         }
 
         function removeEditMember(index) {
-            const { name } = parseMember(editingMembers[index]);
-            if (confirm(`確定要將【${name}】從名單中移除嗎？`)) {
+            const nameToRemove = editingMembers[index].name;
+            if (confirm(`確定要將【${nameToRemove}】從名單中移除嗎？`)) {
                 editingMembers.splice(index, 1);
                 renderEditList();
             }
@@ -367,7 +353,7 @@
             }
             showLoading("正在更新雲端名單...");
             try {
-                // 將帶有狀態的陣列 (ex: ["張三|核心同工"]) 送去覆蓋舊名單
+                // 將物件陣列傳給後端，後端收到後寫入 A 欄及 C 欄
                 const res = await callAPI('updateMemberList', { groupName, members: editingMembers });
                 if (res.success) {
                     alert('名單更新成功！');
@@ -380,7 +366,7 @@
         async function submitAttendance() {
             const date = document.getElementById('attendanceDate').value;
             
-            // ⚠️ 這裡抓取的 cb.value 只有「名字」，不會把身分一起存入點名紀錄中
+            // 抓取 checkbox 的 value，這裡只會有「姓名」，確保點名紀錄表乾淨
             const present = Array.from(document.querySelectorAll('.attendance-check:checked')).map(cb => cb.value);
             const absent = Array.from(document.querySelectorAll('.attendance-check:not(:checked)')).map(cb => cb.value);
             const newFriends = document.getElementById('newFriends').value;
