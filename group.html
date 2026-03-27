@@ -38,9 +38,9 @@
 
         /* --- 🎯 身分標籤專用樣式 --- */
         .role-badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-right: 10px; display: inline-block; width: 55px; text-align: center; }
-        .role-core { background: #ffebee; color: #c62828; }    /* 核心同工：紅色系 */
-        .role-general { background: #e3f2fd; color: #1565c0; } /* 一般同工：藍色系 */
-        .role-sheep { background: #e8f5e9; color: #2e7d32; }   /* 小羊：綠色系 */
+        .role-core { background: #ffebee; color: #c62828; }    
+        .role-general { background: #e3f2fd; color: #1565c0; } 
+        .role-sheep { background: #e8f5e9; color: #2e7d32; }   
         .role-default { background: #f5f5f5; color: #757575; }
 
         /* --- 📊 小組進度表專用樣式 --- */
@@ -53,9 +53,10 @@
         td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
         tr:nth-child(even) { background: #fafafa; }
         
-        /* 跳轉按鈕樣式 */
         .schedule-link-btn { color: #1976D2; cursor: pointer; font-size: 13px; font-weight: bold; margin-top: 5px; display: inline-block; padding: 5px 10px; background: #e3f2fd; border-radius: 6px; border: 1px solid #bbdefb; transition: 0.2s; }
         .schedule-link-btn:hover { background: #bbdefb; }
+        
+        .edit-record-btn { margin-left:5px; padding:3px 6px; font-size:12px; cursor:pointer; background:#FFC107; border:none; border-radius:4px; font-weight:bold; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
     </style>
 </head>
 <body>
@@ -141,14 +142,41 @@
         </div>
     </div>
 
+    <div id="edit-attendance-modal" class="modal">
+        <div class="modal-content">
+            <h3 style="margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; color: #333;">✏️ 修改點名紀錄</h3>
+            
+            <input type="hidden" id="editOriginalDate">
+            
+            <div style="margin: 15px 0; font-weight: bold; color: #333;">
+                📅 聚會日期：<input type="date" id="editAttendanceDate" style="padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+            
+            <div id="editAttendanceMemberList" style="border: 1px solid #ddd; border-radius: 8px; overflow-y: auto; max-height: 250px;">
+                </div>
+
+            <div class="new-friend">
+                <h4 style="margin-top: 0; color: #e65100;">✨ 新朋友</h4>
+                <input type="text" id="editNewFriends" style="width:95%; padding:10px; border: 1px solid #ffcc80; border-radius: 4px;">
+            </div>
+
+            <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+                <button class="btn" onclick="closeEditAttendanceModal()" style="background: #9e9e9e; padding: 10px;">取消</button>
+                <button class="btn" onclick="deleteAttendanceRecord()" style="background: #f44336; padding: 10px;">🗑️ 刪除紀錄</button>
+                <button class="btn" onclick="submitAttendanceEdit()" style="background: #4CAF50; padding: 10px;">💾 儲存修改</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_URL = 'https://script.google.com/macros/s/AKfycbzfaWh_ooRTGijLV_7lYFUHFm83oL6DvYt9rt6ze5mDXhtwLv8ymxLX_PGuDTHzmNwe/exec'; 
         const urlParams = new URLSearchParams(window.location.search);
         const groupName = urlParams.get('name');
         const groupCode = urlParams.get('code'); 
         
-        let currentMembers = []; // 格式為: [{name: '張三', role: '小羊'}]
+        let currentMembers = []; 
         let editingMembers = []; 
+        let recentRecordsData = []; // 用來暫存畫面上的歷史紀錄供修改使用
 
         document.getElementById('displayGroupName').innerText = groupName || '未知名組別';
         document.getElementById('attendanceDate').valueAsDate = new Date();
@@ -184,7 +212,7 @@
             try {
                 const res = await callAPI('checkGroupStatus', { groupName });
                 if (res.isInitialized) {
-                    currentMembers = res.members; // 直接接收後端傳來的物件陣列
+                    currentMembers = res.members;
                     document.getElementById('attendance-panel').style.display = 'block';
                     renderMemberList(res.members);
                     
@@ -209,6 +237,7 @@
             window.open(`https://jirehwang.github.io/LKGroup.github.io/stats.html?id=${groupCode || ''}`, '_blank');
         }
 
+        // --- 📊 歷史進度表 (加入編輯按鈕) ---
         async function loadGroupProgress() {
             const tbody = document.getElementById('progressTableBody');
             document.getElementById('progressSection').style.display = 'block';
@@ -217,12 +246,17 @@
                 const res = await callAPI('getStats', { groupName: groupName, groupCode: groupCode, startDate: "", endDate: "" });
                 
                 if (res.success && res.data.length > 0) {
-                    const latestData = res.data.slice().reverse().slice(0, 3); 
+                    // 取最新 3 筆並存入全域變數供修改視窗調用
+                    recentRecordsData = res.data.slice().reverse().slice(0, 3); 
                     
-                    tbody.innerHTML = latestData.map(row => {
+                    tbody.innerHTML = recentRecordsData.map((row, index) => {
                         const dateObj = new Date(row[0]);
                         const dateStr = `${dateObj.getMonth() + 1}/${dateObj.getDate()}`; 
                         
+                        // 轉換成 YYYY-MM-DD 格式，方便存入隱藏欄位
+                        const fullDateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+                        row.fullDateStr = fullDateStr; // 將標準日期掛載到陣列上
+
                         const present = row[1] ? row[1].toString().split(/[,，]/).map(s=>s.trim()).filter(n=>n) : [];
                         const newFriends = row[3] ? row[3].toString().split(/[,，]/).map(s=>s.trim()).filter(n=>n) : [];
                         const totalCount = present.length + newFriends.length;
@@ -232,11 +266,15 @@
                             namesHtml += ` <span style="color:#ef6c00; font-size:12px; font-weight:bold;">(+新朋友: ${newFriends.join('、')})</span>`;
                         }
 
+                        // 加入 ✏️ 編輯按鈕，傳入 index
                         return `
                             <tr>
                                 <td><span style="background: #e3f2fd; padding: 3px 8px; border-radius: 12px; font-weight: bold; font-size: 12px;">${dateStr}</span></td>
                                 <td style="font-weight: bold; font-size: 16px;">${totalCount} 人</td>
-                                <td style="text-align: left; font-size: 13px; color: #555;">${namesHtml || '無出席紀錄'}</td>
+                                <td style="text-align: left; font-size: 13px; color: #555;">
+                                    ${namesHtml || '無出席紀錄'}
+                                    <button class="edit-record-btn" onclick="openEditAttendanceModal(${index})">✏️</button>
+                                </td>
                             </tr>
                         `;
                     }).join('');
@@ -248,11 +286,82 @@
             }
         }
 
+        // --- ✏️ 歷史紀錄修改邏輯 ---
+        function openEditAttendanceModal(index) {
+            const row = recentRecordsData[index];
+            const originalDate = row.fullDateStr;
+            const presentArr = row[1] ? row[1].toString().split(/[,，]/).map(s=>s.trim()).filter(n=>n) : [];
+            const newFriendsStr = row[3] ? row[3].toString() : '';
+
+            // 填寫彈窗初始資料
+            document.getElementById('editOriginalDate').value = originalDate;
+            document.getElementById('editAttendanceDate').value = originalDate;
+            document.getElementById('editNewFriends').value = newFriendsStr;
+
+            // 依據目前名單，動態生成打勾狀態
+            const listDiv = document.getElementById('editAttendanceMemberList');
+            listDiv.innerHTML = currentMembers.map(m => {
+                const isChecked = presentArr.includes(m.name) ? 'checked' : '';
+                const roleClass = getRoleClass(m.role);
+                return `
+                    <div class="member-item">
+                        <input type="checkbox" class="edit-attendance-check" value="${m.name}" ${isChecked}>
+                        <span class="role-badge ${roleClass}">${m.role}</span>
+                        <span style="font-size: 16px; font-weight: bold; color: #333;">${m.name}</span>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('edit-attendance-modal').style.display = 'block';
+        }
+
+        function closeEditAttendanceModal() {
+            document.getElementById('edit-attendance-modal').style.display = 'none';
+        }
+
+        async function submitAttendanceEdit() {
+            const originalDate = document.getElementById('editOriginalDate').value;
+            const newDate = document.getElementById('editAttendanceDate').value;
+            const newFriends = document.getElementById('editNewFriends').value;
+
+            const present = Array.from(document.querySelectorAll('.edit-attendance-check:checked')).map(cb => cb.value);
+            const absent = Array.from(document.querySelectorAll('.edit-attendance-check:not(:checked)')).map(cb => cb.value);
+
+            if (present.length === 0 && !newFriends) {
+                if (!confirm("修改後出席人數為 0，確定要儲存嗎？")) return;
+            }
+
+            showLoading("正在更新點名紀錄...");
+            try {
+                const res = await callAPI('updateAttendanceRecord', {
+                    groupName, originalDate, newDate, present, absent, newFriends
+                });
+                if (res.success) {
+                    alert('修改成功！');
+                    location.reload();
+                } else { alert('修改失敗：' + res.message); }
+            } finally { hideLoading(); }
+        }
+
+        async function deleteAttendanceRecord() {
+            const originalDate = document.getElementById('editOriginalDate').value;
+            
+            if (!confirm(`確定要將【${originalDate}】的點名紀錄完全刪除嗎？刪除後無法復原喔！`)) return;
+
+            showLoading("正在刪除紀錄...");
+            try {
+                const res = await callAPI('deleteAttendanceRecord', { groupName, originalDate });
+                if (res.success) {
+                    alert('紀錄已刪除！');
+                    location.reload();
+                } else { alert('刪除失敗：' + res.message); }
+            } finally { hideLoading(); }
+        }
+
+        // --- 原始核心邏輯 (建立名單、編輯名單、送出今日點名) ---
         async function initGroup() {
             const rawMembers = document.getElementById('memberInput').value.split('\n').filter(n => n.trim());
             if (rawMembers.length === 0) return alert('請輸入名單');
-            
-            // 初始化時轉為物件陣列，預設寫入小羊
             const members = rawMembers.map(name => ({ name: name.trim(), role: '小羊' }));
 
             showLoading("正在建立雲端分頁，這可能需要幾秒鐘...");
@@ -265,8 +374,6 @@
 
         function renderMemberList(members) {
             const list = document.getElementById('memberList');
-            
-            // 直接讀取物件的 m.name 與 m.role
             list.innerHTML = members.map(m => {
                 const roleClass = getRoleClass(m.role);
                 return `
@@ -279,13 +386,11 @@
             }).join('');
         }
 
-        // --- 📝 編輯名單邏輯 (以物件結構處理) ---
         function toggleEditMode() {
             const modal = document.getElementById('edit-modal');
             if (modal.style.display === 'block') {
                 modal.style.display = 'none';
             } else {
-                // 深拷貝物件陣列，避免直接修改到 currentMembers
                 editingMembers = currentMembers.map(m => ({...m}));
                 document.getElementById('newMemberInput').value = ""; 
                 renderEditList();
@@ -316,9 +421,7 @@
             }).join('');
         }
 
-        function updateMemberRole(index, newRole) {
-            editingMembers[index].role = newRole; // 直接更新物件中的 role
-        }
+        function updateMemberRole(index, newRole) { editingMembers[index].role = newRole; }
 
         function addEditMember() {
             const input = document.getElementById('newMemberInput');
@@ -327,12 +430,9 @@
             const newRole = roleSelect.value;
             
             if (!newName) return alert("請輸入要新增的姓名！");
-            
-            // 檢查是否重複 (核對物件的 name 屬性)
-            const exists = editingMembers.some(m => m.name === newName);
-            if (exists) return alert("此人已經在名單中了！");
+            if (editingMembers.some(m => m.name === newName)) return alert("此人已經在名單中了！");
 
-            editingMembers.push({ name: newName, role: newRole }); // 推入新物件
+            editingMembers.push({ name: newName, role: newRole });
             input.value = ""; 
             renderEditList(); 
         }
@@ -353,20 +453,14 @@
             }
             showLoading("正在更新雲端名單...");
             try {
-                // 將物件陣列傳給後端，後端收到後寫入 A 欄及 C 欄
                 const res = await callAPI('updateMemberList', { groupName, members: editingMembers });
-                if (res.success) {
-                    alert('名單更新成功！');
-                    location.reload(); 
-                } else { alert('更新失敗：' + res.message); }
+                if (res.success) { alert('名單更新成功！'); location.reload(); } 
+                else { alert('更新失敗：' + res.message); }
             } catch (e) { alert("連線發生錯誤，請稍後再試。"); } finally { hideLoading(); }
         }
 
-        // --- 💾 送出點名邏輯 ---
         async function submitAttendance() {
             const date = document.getElementById('attendanceDate').value;
-            
-            // 抓取 checkbox 的 value，這裡只會有「姓名」，確保點名紀錄表乾淨
             const present = Array.from(document.querySelectorAll('.attendance-check:checked')).map(cb => cb.value);
             const absent = Array.from(document.querySelectorAll('.attendance-check:not(:checked)')).map(cb => cb.value);
             const newFriends = document.getElementById('newFriends').value;
@@ -378,10 +472,8 @@
             showLoading("正在存入點名資料，請勿關閉網頁...");
             try {
                 const res = await callAPI('submitAttendance', { groupName, date, present, absent, newFriends });
-                if (res.success) {
-                    alert('點名成功！');
-                    location.reload();
-                } else { alert('失敗：' + res.message); }
+                if (res.success) { alert('點名成功！'); location.reload(); } 
+                else { alert('失敗：' + res.message); }
             } finally { hideLoading(); }
         }
     </script>
