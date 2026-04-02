@@ -1,4 +1,3 @@
-const API_URL = 'https://script.google.com/macros/s/AKfycbzfaWh_ooRTGijLV_7lYFUHFm83oL6DvYt9rt6ze5mDXhtwLv8ymxLX_PGuDTHzmNwe/exec';
 let identifiedGroupName = "";
 let isAdmin = false;
 let debounceTimer;
@@ -10,6 +9,16 @@ function showLoading(msg = "處理中...") {
 }
 function hideLoading() {
     document.getElementById('loading-overlay').style.display = 'none';
+}
+
+// 🌟 核心修改：移除明碼網址，改用中央路由安全連線
+async function callAPI(action, data = {}) {
+    if (typeof window.churchAPI !== 'function') {
+        alert("⚠️ 系統錯誤：安全路由 (config.js) 尚未載入！");
+        throw new Error("安全路由尚未載入");
+    }
+    // 透過 config.js 的 Base64 加密通道發送請求
+    return await window.churchAPI(action, data);
 }
 
 // --- 小組編號即時驗證 ---
@@ -38,6 +47,7 @@ document.getElementById('groupCode').addEventListener('input', (e) => {
 
         showLoading("正在驗證小組編號...");
         try {
+            // 🌟 已改用安全 API 呼叫
             const res = await callAPI('findGroupByCode', { groupCode: code });
             if (res.success) {
                 identifiedGroupName = res.groupName;
@@ -64,11 +74,13 @@ async function loadAdminOptions() {
     const res = await callAPI('getGroups');
     const select = document.getElementById('adminGroupSelect');
     select.innerHTML = '<option value="ALL">-- 全小組彙整 --</option>';
-    res.groups.forEach(g => {
-        const opt = document.createElement('option');
-        opt.value = g.name; opt.innerText = g.name;
-        select.appendChild(opt);
-    });
+    if (res.groups) {
+        res.groups.forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = g.name; opt.innerText = g.name;
+            select.appendChild(opt);
+        });
+    }
 }
 
 // --- 數據查詢與渲染 ---
@@ -95,15 +107,6 @@ async function loadStats() {
     } finally {
         hideLoading();
     }
-}
-
-async function callAPI(action, data) {
-    const response = await fetch(API_URL, {
-        method: 'POST', 
-        body: JSON.stringify({action, data}),
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-    });
-    return await response.json();
 }
 
 function renderSingleStats(res, start, end) {
