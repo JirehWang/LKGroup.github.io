@@ -4,63 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>小組點名系統 - 統計中心</title>
-    <style>
-        /* --- 全域遮罩樣式 --- */
-        #loading-overlay {
-            display: none;
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(255, 255, 255, 0.85);
-            z-index: 9999;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            backdrop-filter: blur(3px);
-        }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid #3498db;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .loading-msg {
-            margin-top: 15px;
-            color: #333;
-            font-weight: bold;
-            font-size: 16px;
-        }
-
-        /* --- 原有樣式 --- */
-        body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 20px; max-width: 1000px; margin: auto; background-color: #f8f9fa; }
-        .filter-box { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .input-row { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 15px; }
-        input { padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
-        .status-badge { padding: 6px 12px; border-radius: 20px; font-size: 14px; font-weight: bold; background: #eee; transition: 0.3s; }
-        .status-ok { background: #e8f5e9; color: #2e7d32; }
-        .status-err { background: #ffebee; color: #c62828; }
-        .status-wait { background: #fff3e0; color: #ef6c00; }
-        
-        .btn { padding: 10px 20px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; transition: 0.3s; }
-        .btn-query { background: #4CAF50; color: white; }
-        .btn-query:hover { background: #45a049; }
-        .btn-export { background: #2196F3; color: white; }
-        
-        table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; border-radius: 8px; overflow: hidden; }
-        th, td { border: 1px solid #eee; padding: 12px; text-align: center; }
-        th { background: #4CAF50; color: white; }
-        tr:nth-child(even) { background: #fafafa; }
-        .loading-text-inline { color: #666; font-style: italic; }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -69,245 +13,36 @@
         <div class="loading-msg" id="overlay-text">處理中，請稍候...</div>
     </div>
 
-    <div style="display: flex; justify-content: space-between; align-items: center;">
+    <div class="header">
         <h1>📊 統計與報表中心</h1>
-        <a href="index.html" style="text-decoration: none; color: #666;">⬅️ 回首頁</a>
+        <a href="index.html" style="text-decoration: none; color: #666; font-weight: bold;">⬅️ 回首頁</a>
     </div>
 
     <div class="filter-box">
         <div class="input-row">
             小組編號：<input type="text" id="groupCode" placeholder="例如：AA01" style="width: 120px; text-transform: uppercase;">
             <span id="idResult" class="status-badge">等待輸入...</span>
-            <select id="adminGroupSelect" style="display:none; padding: 10px; border-radius: 6px; border: 1px solid #ddd;"></select>
+            <select id="adminGroupSelect" style="display:none;"></select>
         </div>
         <div class="input-row">
-            查詢區間：<input type="date" id="startDate"> <span>~</span> <input type="date" id="endDate">
-            <button class="btn btn-query" onclick="loadStats()">🔍 查詢統計</button>
-            <button class="btn btn-export" onclick="exportToExcel()">📥 匯出 Excel</button>
+            查詢區間：
+            <input type="date" id="startDate"> 
+            <span>~</span> 
+            <input type="date" id="endDate">
+            <button class="btn" style="background: #4CAF50;" onclick="loadStats()">🔍 查詢統計</button>
+            <button class="btn" style="background: #2196F3;" onclick="exportToExcel()">📥 匯出 Excel</button>
         </div>
     </div>
 
     <div id="resultArea" style="overflow-x: auto;">
-        <table id="statsTable"><thead></thead><tbody></tbody></table>
+        <table id="statsTable">
+            <thead>
+                </thead>
+            <tbody>
+                </tbody>
+        </table>
     </div>
 
-    <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbzfaWh_ooRTGijLV_7lYFUHFm83oL6DvYt9rt6ze5mDXhtwLv8ymxLX_PGuDTHzmNwe/exec';
-        let identifiedGroupName = "";
-        let isAdmin = false;
-        let debounceTimer;
-
-        function showLoading(msg = "處理中...") {
-            document.getElementById('overlay-text').innerText = msg;
-            document.getElementById('loading-overlay').style.display = 'flex';
-        }
-
-        function hideLoading() {
-            document.getElementById('loading-overlay').style.display = 'none';
-        }
-
-        document.getElementById('groupCode').addEventListener('input', (e) => {
-            const code = e.target.value.trim().toUpperCase();
-            const idRes = document.getElementById('idResult');
-            const adminSelect = document.getElementById('adminGroupSelect');
-            
-            clearTimeout(debounceTimer);
-
-            if (code.length === 0) {
-                idRes.innerText = '等待輸入...';
-                idRes.className = 'status-badge';
-                return;
-            }
-
-            idRes.innerText = '等待中...';
-            idRes.className = 'status-badge status-wait';
-
-            debounceTimer = setTimeout(async () => {
-                if (code.length < 4) {
-                    idRes.innerText = '❌ 字數不足';
-                    idRes.className = 'status-badge status-err';
-                    return;
-                }
-
-                showLoading("正在驗證小組編號...");
-                try {
-                    const res = await callAPI('findGroupByCode', { groupCode: code });
-                    if (res.success) {
-                        identifiedGroupName = res.groupName;
-                        isAdmin = res.isAdmin;
-                        idRes.className = 'status-badge status-ok';
-                        idRes.innerText = isAdmin ? '🛡️ 最高權限模式' : `✅ 小組：${res.groupName}`;
-                        adminSelect.style.display = isAdmin ? 'inline-block' : 'none';
-                        if (isAdmin) await loadAdminOptions();
-                    } else {
-                        identifiedGroupName = "";
-                        idRes.innerText = '❌ 查無此代碼';
-                        idRes.className = 'status-badge status-err';
-                        adminSelect.style.display = 'none';
-                    }
-                } catch (err) {
-                    idRes.innerText = '⚠️ 連線異常';
-                } finally {
-                    hideLoading();
-                }
-            }, 1000);
-        });
-
-        async function loadAdminOptions() {
-            const res = await callAPI('getGroups');
-            const select = document.getElementById('adminGroupSelect');
-            select.innerHTML = '<option value="ALL">-- 全小組彙整 --</option>';
-            res.groups.forEach(g => {
-                const opt = document.createElement('option');
-                opt.value = g.name; opt.innerText = g.name;
-                select.appendChild(opt);
-            });
-        }
-
-        async function loadStats() {
-            if (!identifiedGroupName) return alert('請先輸入正確的編號並等待識別');
-            const start = document.getElementById('startDate').value;
-            const end = document.getElementById('endDate').value;
-            const group = isAdmin ? document.getElementById('adminGroupSelect').value : identifiedGroupName;
-            const code = document.getElementById('groupCode').value.toUpperCase();
-
-            showLoading("正在從雲端資料庫彙整報表，請稍候...");
-            
-            try {
-                let res;
-                if (isAdmin && group === 'ALL') {
-                    res = await callAPI('getAllGroupsStats', { groupCode: code, startDate: start, endDate: end });
-                    renderAllStats(res, start, end);
-                } else {
-                    res = await callAPI('getStats', { groupName: group, groupCode: code, startDate: start, endDate: end });
-                    renderSingleStats(res, start, end);
-                }
-            } catch (e) {
-                alert("查詢失敗，請稍後再試。");
-            } finally {
-                hideLoading();
-            }
-        }
-
-        async function callAPI(action, data) {
-            const response = await fetch(API_URL, {
-                method: 'POST', 
-                body: JSON.stringify({action, data}),
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-            });
-            return await response.json();
-        }
-
-         // stats.html 中的 renderSingleStats 函式優化
-        function renderSingleStats(res, start, end) {
-            if (!res.success) return alert(res.message);
-            const thead = document.querySelector('#statsTable thead');
-            const tbody = document.querySelector('#statsTable tbody');
-            const isSingleDay = (start === end && start !== "");
-        
-            if (isSingleDay) {
-                // --- 🚀 仿主日系統：單日出席狀況模式 ---
-                thead.innerHTML = `<tr><th>類型</th><th>姓名</th><th>狀態</th></tr>`;
-                
-                const row = res.data[0] || [];
-                if (!row.length) {
-                    tbody.innerHTML = '<tr><td colspan="3">當日查無點名紀錄</td></tr>';
-                    return;
-                }
-        
-                const presentArr = row[1] ? row[1].split(/[,，]/).map(s => s.trim()).filter(n => n) : [];
-                const absentArr = row[2] ? row[2].split(/[,，]/).map(s => s.trim()).filter(n => n) : [];
-                const newFriendsArr = row[3] ? row[3].split(/[,，]/).map(s => s.trim()).filter(n => n) : [];
-        
-                let html = "";
-                
-                // 1. 先顯示正式出席者
-                presentArr.forEach(name => {
-                    html += `<tr style="background:#e8f5e9"><td>正式成員</td><td>${name}</td><td style="color:#2e7d32; font-weight:bold;">✅ 出席</td></tr>`;
-                });
-        
-                // 2. 顯示新朋友
-                newFriendsArr.forEach(name => {
-                    html += `<tr style="background:#fff3e0"><td>✨ 新朋友</td><td>${name}</td><td style="color:#ef6c00; font-weight:bold;">✅ 出席</td></tr>`;
-                });
-        
-                // 3. 顯示缺席者
-                absentArr.forEach(name => {
-                    // 如果新朋友跟缺席名單重疊(極少見)，則不重複顯示
-                    if (!presentArr.includes(name)) {
-                        html += `<tr style="background:#ffebee"><td>正式成員</td><td>${name}</td><td style="color:#c62828;">❌ 缺席</td></tr>`;
-                    }
-                });
-        
-                tbody.innerHTML = html;
-        
-            } else {
-                // --- 📊 區間摘要模式 ---
-                thead.innerHTML = `<tr><th>姓名</th><th>聚會次數</th><th>出席次數</th><th>出席率</th></tr>`;
-                const totalSessions = res.data.length;
-                const counts = {};
-                
-                res.data.forEach(row => {
-                    const p = row[1] ? row[1].split(/[,，]/).map(s => s.trim()) : [];
-                    const nf = row[3] ? row[3].split(/[,，]/).map(s => s.trim()) : [];
-                    const dailySet = [...new Set([...p, ...nf])].filter(n => n);
-                    
-                    dailySet.forEach(name => {
-                        counts[name] = (counts[name] || 0) + 1;
-                    });
-                });
-        
-                const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
-                tbody.innerHTML = sorted.map(([name, count]) => {
-                    const rate = ((count/totalSessions)*100).toFixed(1);
-                    return `<tr><td>${name}</td><td>${totalSessions}</td><td>${count}</td><td>${rate}%</td></tr>`;
-                }).join('');
-            }
-        }
-        function renderAllStats(res, start, end) {
-            if (!res.success) return alert(res.message);
-            const thead = document.querySelector('#statsTable thead');
-            const tbody = document.querySelector('#statsTable tbody');
-            const isSingleDay = (start === end && start !== "");
-
-            if (isSingleDay) {
-                thead.innerHTML = `<tr><th>姓名</th><th>小組</th><th>狀態</th></tr>`;
-                tbody.innerHTML = res.members.map(m => `<tr><td>${m.name}</td><td>${m.group}</td><td style="color:green; font-weight:bold;">V</td></tr>`).join('');
-            } else {
-                thead.innerHTML = `<tr><th>姓名</th><th>小組</th><th>總聚會次數</th><th>出席次數</th><th>出席率</th></tr>`;
-                
-                tbody.innerHTML = res.members.map(m => {
-                    const count = Object.keys(m.attendance).length;
-                    
-                    // 💡 關鍵修改：從後端傳來的 groupSessions 裡面，抓取「該小組專屬」的總次數
-                    const total = res.groupSessions[m.group] || 0;
-                    
-                    const rate = total > 0 ? ((count/total)*100).toFixed(1) : 0;
-                    return `<tr><td>${m.name}</td><td>${m.group}</td><td>${total}</td><td>${count}</td><td>${rate}%</td></tr>`;
-                }).join('');
-            }
-        }
-
-        function exportToExcel() {
-            const table = document.getElementById("statsTable");
-            if (table.rows.length <= 1) return alert('目前沒有資料可供匯出');
-            
-            showLoading("正在準備 Excel 檔案...");
-            setTimeout(() => {
-                let csv = "\ufeff";
-                for (let i = 0; i < table.rows.length; i++) {
-                    const row = [], cols = table.rows[i].cells;
-                    for (let j = 0; j < cols.length; j++) row.push(cols[j].innerText);
-                    csv += row.join(",") + "\r\n";
-                }
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement("a");
-                link.href = URL.createObjectURL(blob);
-                link.download = `小組統計報表_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`;
-                link.click();
-                hideLoading();
-            }, 500);
-        }
-    </script>
+    <script src="stats.js"></script>
 </body>
 </html>
