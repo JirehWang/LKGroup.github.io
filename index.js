@@ -1,5 +1,3 @@
-const API_URL = 'https://script.google.com/macros/s/AKfycbzfaWh_ooRTGijLV_7lYFUHFm83oL6DvYt9rt6ze5mDXhtwLv8ymxLX_PGuDTHzmNwe/exec';
-
 // --- Loading 控制函式 ---
 function showLoading(msg = "處理中...") {
     document.getElementById('overlay-text').innerText = msg;
@@ -12,6 +10,12 @@ function hideLoading() {
 
 // 🚀 網頁載入初始化邏輯 (包含專屬連結攔截)
 window.onload = async () => {
+    // 檢查中央路由是否就緒
+    if (typeof window.churchAPI !== 'function') {
+        alert("⚠️ 系統錯誤：安全路由 (config.js) 尚未載入！請聯絡管理員。");
+        return;
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const queryId = urlParams.get('id');
     
@@ -19,12 +23,8 @@ window.onload = async () => {
     if (queryId) {
         showLoading("正在驗證專屬連結...");
         try {
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                body: JSON.stringify({ action: 'findGroupByCode', data: { groupCode: queryId } }),
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-            });
-            const res = await response.json();
+            // 🌟 使用中央路由發送請求
+            const res = await window.churchAPI('findGroupByCode', { groupCode: queryId });
             
             if (res.success) {
                 // 驗證成功，直接跳轉到該小組的點名頁面，並帶上名稱與代碼
@@ -51,12 +51,8 @@ async function fetchGroups() {
     showLoading("正在獲取最新小組清單...");
     const container = document.getElementById('group-list-container');
     try {
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'getGroups' }),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-        });
-        const res = await response.json();
+        // 🌟 使用中央路由發送請求
+        const res = await window.churchAPI('getGroups');
         
         if (res.success) {
             container.innerHTML = '';
@@ -73,6 +69,8 @@ async function fetchGroups() {
             createBtn.innerText = '➕ 創建新小組';
             createBtn.onclick = () => toggleModal(true);
             container.appendChild(createBtn);
+        } else {
+            container.innerHTML = `<p>讀取失敗：${res.message || '未知錯誤'}</p>`;
         }
     } catch (e) {
         container.innerHTML = '<p>讀取失敗，請重新整理頁面</p>';
@@ -93,12 +91,9 @@ async function createNewGroup() {
 
     showLoading("正在雲端建立小組並設定權限...");
     try {
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'createGroup', data: { groupName: name, groupCode: code } }),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-        });
-        const res = await response.json();
+        // 🌟 使用中央路由發送請求
+        const res = await window.churchAPI('createGroup', { groupName: name, groupCode: code });
+        
         alert(res.message);
         if (res.success) {
             toggleModal(false);
@@ -119,12 +114,8 @@ async function enterGroup(groupName) {
     showLoading(`正在驗證【${groupName}】的身分...`);
     
     try {
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'verifyGroup', data: { groupName, groupCode: code } }),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-        });
-        const res = await response.json();
+        // 🌟 使用中央路由發送請求
+        const res = await window.churchAPI('verifyGroup', { groupName, groupCode: code });
         
         if (res.success) {
             document.getElementById('overlay-text').innerText = "驗證成功，進入小組中...";
