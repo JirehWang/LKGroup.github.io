@@ -1,3 +1,4 @@
+// --- 基礎變數設定 ---
 const urlParams = new URLSearchParams(window.location.search);
 const groupName = urlParams.get('name');
 const groupCode = urlParams.get('code'); 
@@ -6,27 +7,59 @@ let currentMembers = [];
 let editingMembers = []; 
 let recentRecordsData = []; 
 
-document.getElementById('displayGroupName').innerText = groupName || '未知名組別';
-document.getElementById('attendanceDate').valueAsDate = new Date();
+// --- 🚀 啟動哨兵：確保中央路由 (config.js) 已經準備好 ---
+async function ensureAPIReady() {
+    let retryCount = 0;
+    // 每 100 毫秒檢查一次，最多等 5 秒 (50次)
+    while (typeof window.churchAPI !== 'function' && retryCount < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        retryCount++;
+    }
+    if (typeof window.churchAPI !== 'function') {
+        throw new Error("安全路由載入逾時，請確認 config.js 是否正常載入。");
+    }
+}
 
-window.onload = checkGroupStatus;
+// --- 📦 網頁載入啟動流程 (優化版) ---
+window.onload = async () => {
+    try {
+        // 1. 先顯示啟動畫面
+        showLoading("🚀 正在啟動安全通道...");
+
+        // 2. 哨兵開始守候 API 就緒
+        await ensureAPIReady();
+
+        // 3. API 就緒後，執行原本的初始化邏輯
+        document.getElementById('displayGroupName').innerText = groupName || '未知名組別';
+        document.getElementById('attendanceDate').valueAsDate = new Date();
+        
+        await checkGroupStatus();
+
+    } catch (e) {
+        console.error(e);
+        alert("系統啟動失敗：" + e.message);
+        hideLoading();
+    }
+};
 
 // --- 共用 Loading 功能 ---
 function showLoading(msg = "處理中...") {
-    document.getElementById('overlay-text').innerText = msg;
-    document.getElementById('loading-overlay').style.display = 'flex';
+    const textEl = document.getElementById('overlay-text');
+    const overlayEl = document.getElementById('loading-overlay');
+    if (textEl) textEl.innerText = msg;
+    if (overlayEl) overlayEl.style.display = 'flex';
 }
 function hideLoading() {
-    document.getElementById('loading-overlay').style.display = 'none';
+    const overlayEl = document.getElementById('loading-overlay');
+    if (overlayEl) overlayEl.style.display = 'none';
 }
 
-// 🌟 核心修改：移除明碼網址，全面改呼叫 config.js 的安全路由
+// 🌟 核心修改：移除明碼網址，改用中央路由安全連線
 async function callAPI(action, data = {}) {
     if (typeof window.churchAPI !== 'function') {
-        alert("⚠️ 系統錯誤：安全路由 (config.js) 尚未載入！");
         throw new Error("安全路由尚未載入");
     }
-    // 透過中央路由發送請求，完美隱藏真實 URL 與 Token
+    // 透過中央路由發送請求
     return await window.churchAPI(action, data);
 }
 
@@ -54,6 +87,8 @@ async function checkGroupStatus() {
         } else {
             document.getElementById('init-panel').style.display = 'block';
         }
+    } catch (e) {
+        alert("載入失敗，請重新整理頁面。");
     } finally {
         hideLoading();
     }
@@ -62,7 +97,6 @@ async function checkGroupStatus() {
 // --- 跳轉功能 ---
 function goToSchedule() {
     if (!groupCode) return alert("未取得小組編號，無法跳轉。");
-    // 注意：這裡的前端跳轉網址我為你保留原樣，這是安全的
     window.open(`https://jirehwang.github.io/LKC1958_June_1.github.io/?id=${groupCode}`, '_blank');
 }
 
@@ -73,6 +107,7 @@ function goToFullStats() {
 // --- 📊 歷史進度表載入與渲染 ---
 async function loadGroupProgress() {
     const tbody = document.getElementById('progressTableBody');
+    if (!tbody) return;
     document.getElementById('progressSection').style.display = 'block';
 
     try {
@@ -112,7 +147,7 @@ async function loadGroupProgress() {
             tbody.innerHTML = '<tr><td colspan="3" style="color: #999; padding: 20px;">目前尚無聚會紀錄</td></tr>';
         }
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="3" style="color: red;">讀取紀錄失敗，請重新整理</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="3" style="color: red;">讀取紀錄失敗</td></tr>';
     }
 }
 
