@@ -4,11 +4,15 @@
     --create-color: #FF9800; 
 }
 
-/* --- 全域基礎樣式 --- */
+/* =========================================
+   1. 全域基礎樣式 & 共用元件
+========================================= */
 body { 
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; 
-    padding: 20px; max-width: 1000px; 
-    margin: auto; background-color: #f8f9fa; 
+    padding: 20px; 
+    max-width: 900px; /* 統一使用適合閱讀的寬度 */
+    margin: auto; 
+    background-color: #f5f7f9; 
     line-height: 1.6;
 }
 
@@ -33,20 +37,119 @@ body {
     border-radius: 50%; animation: spin 1s linear infinite; 
 }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-.loading-msg { margin-top: 15px; color: #333; font-weight: bold; }
+.loading-msg { margin-top: 15px; color: #333; font-weight: bold; font-size: 16px; }
 
-/* --- 按鈕與輸入框 --- */
+/* --- 基礎表格 --- */
+table { 
+    width: 100%; border-collapse: collapse; 
+    background: white; margin-top: 20px; 
+    border-radius: 8px; overflow: hidden; 
+}
+th, td { border: 1px solid #eee; padding: 12px; text-align: center; }
+th { background: var(--primary-color); color: white; position: sticky; top: 0; z-index: 1; }
+tr:nth-child(even) { background: #fafafa; }
+
+/* --- 基礎按鈕與輸入框 --- */
 .btn { 
     padding: 10px 20px; cursor: pointer; border: none; 
-    border-radius: 6px; font-weight: bold; transition: 0.3s; 
-    color: white;
+    border-radius: 4px; font-weight: bold; transition: 0.3s; 
+    color: white; margin-top: 10px;
 }
 input, select, textarea { 
     padding: 10px; border: 1px solid #ddd; 
-    border-radius: 6px; font-size: 14px; 
+    border-radius: 6px; font-size: 14px; box-sizing: border-box;
 }
 
-/* --- 統計中心專用樣式 --- */
+/* --- 彈窗 (Modal) 共用 --- */
+.modal { 
+    display: none; position: fixed; top: 0; left: 0; 
+    width: 100%; height: 100%; background: rgba(0,0,0,0.6); 
+    z-index: 1000; backdrop-filter: blur(4px); 
+}
+.modal-content { 
+    background: white; width: 90%; max-width: 450px; 
+    margin: 40px auto; padding: 30px; border-radius: 16px; 
+    position: relative; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+.modal-content h3 { margin-top: 0; color: #333; }
+.close-btn { position: absolute; top: 15px; right: 15px; font-size: 24px; cursor: pointer; color: #999; }
+
+/* =========================================
+   2. 首頁專屬樣式 (index.html)
+========================================= */
+.stats-link { 
+    background: var(--admin-color); color: white; 
+    text-decoration: none; padding: 10px 20px; 
+    border-radius: 50px; font-weight: bold; transition: 0.3s; 
+}
+.stats-link:hover { opacity: 0.8; transform: translateY(-2px); }
+
+#group-list-container { 
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; 
+}
+.tag-btn { 
+    padding: 20px 10px; border: none; border-radius: 12px; 
+    font-size: 16px; font-weight: 600; cursor: pointer; 
+    transition: all 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+    background: white; color: #333; text-align: center; 
+}
+.tag-btn:hover { transform: scale(1.05); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
+.group-tag { border-top: 5px solid var(--primary-color); }
+.create-tag { border: 2px dashed var(--create-color); color: var(--create-color); background: #fffbf2; }
+.submit-btn { 
+    width: 100%; padding: 12px; background: var(--create-color); 
+    color: white; border: none; border-radius: 8px; 
+    font-size: 16px; cursor: pointer; margin-top: 10px; 
+}
+
+/* =========================================
+   3. 點名頁專屬樣式 (group.html)
+========================================= */
+.member-item { 
+    display: flex; align-items: center; padding: 12px 10px; 
+    border-bottom: 1px dashed #ccc; background: white; 
+}
+.member-item input[type="checkbox"] { transform: scale(1.5); margin-right: 15px; }
+
+/* 點名頁專用按鈕群 */
+.btn-save { background-color: #2196F3; width: 100%; font-size: 18px; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(33,150,243,0.3); }
+.btn-save:hover { background-color: #1976D2; }
+.btn-init { background-color: #f44336; }
+.btn-edit { background-color: #607D8B; font-size: 14px; margin-bottom: 10px; }
+
+/* 新朋友區塊 */
+.new-friend { 
+    margin-top: 20px; padding: 15px; background: #fff3e0; 
+    border-radius: 8px; border: 1px solid #ffe0b2; margin-bottom: 15px; 
+}
+
+/* 編輯名單清單 */
+.edit-add-box { display: flex; gap: 8px; margin-bottom: 15px; align-items: center; }
+.edit-role-select { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; background: white; }
+.btn-add { background: #FF9800; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; white-space: nowrap; margin-top: 0;}
+.edit-list-container { max-height: 350px; overflow-y: auto; border: 1px solid #eee; border-radius: 6px; padding: 5px; background: #fafafa; }
+.edit-member-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; background: white; margin-bottom: 5px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.btn-remove { background: #ffebee; color: #c62828; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px; font-weight: bold; transition: 0.2s; margin-top: 0;}
+
+/* 身分標籤 (核心/一般/小羊) */
+.role-badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-right: 10px; display: inline-block; width: 55px; text-align: center; }
+.role-core { background: #ffebee; color: #c62828; }    
+.role-general { background: #e3f2fd; color: #1565c0; } 
+.role-sheep { background: #e8f5e9; color: #2e7d32; }   
+.role-default { background: #f5f5f5; color: #757575; }
+
+/* 歷史進度表 */
+.progress-section { margin-top: 40px; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+.progress-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #4CAF50; padding-bottom: 10px; margin-bottom: 10px; }
+.progress-header h3 { margin: 0; color: #333; font-size: 16px; }
+.table-wrapper { overflow-y: auto; border-radius: 6px; border: 1px solid #eee; }
+.schedule-link-btn { color: #1976D2; cursor: pointer; font-size: 13px; font-weight: bold; margin-top: 5px; display: inline-block; padding: 5px 10px; background: #e3f2fd; border-radius: 6px; border: 1px solid #bbdefb; transition: 0.2s; }
+.schedule-link-btn:hover { background: #bbdefb; }
+.edit-record-btn { margin-left:5px; padding:3px 6px; font-size:12px; cursor:pointer; background:#FFC107; border:none; border-radius:4px; font-weight:bold; color: #333; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+
+/* =========================================
+   4. 統計中心專屬樣式 (stats.html)
+========================================= */
 .filter-box { 
     background: white; padding: 25px; 
     border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
@@ -58,30 +161,12 @@ input, select, textarea {
 }
 .status-badge { 
     padding: 6px 12px; border-radius: 20px; 
-    font-size: 14px; font-weight: bold; background: #eee; 
+    font-size: 14px; font-weight: bold; background: #eee; transition: 0.3s;
 }
 .status-ok { background: #e8f5e9; color: #2e7d32; }
 .status-err { background: #ffebee; color: #c62828; }
 .status-wait { background: #fff3e0; color: #ef6c00; }
 
-/* --- 表格樣式 --- */
-table { 
-    width: 100%; border-collapse: collapse; 
-    background: white; margin-top: 20px; 
-    border-radius: 8px; overflow: hidden; 
-}
-th, td { border: 1px solid #eee; padding: 12px; text-align: center; }
-th { background: var(--primary-color); color: white; }
-tr:nth-child(even) { background: #fafafa; }
-
-/* --- 彈窗樣式 --- */
-.modal { 
-    display: none; position: fixed; 
-    top: 0; left: 0; width: 100%; height: 100%; 
-    background: rgba(0,0,0,0.7); z-index: 1000; 
-    backdrop-filter: blur(2px); 
-}
-.modal-content { 
-    background: white; width: 90%; max-width: 450px; 
-    margin: 40px auto; padding: 20px; border-radius: 12px; 
-}
+.btn-query { background: #4CAF50; color: white; margin-top: 0;}
+.btn-query:hover { background: #45a049; }
+.btn-export { background: #2196F3; color: white; margin-top: 0;}
