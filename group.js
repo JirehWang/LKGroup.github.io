@@ -1,4 +1,3 @@
-const API_URL = 'https://script.google.com/macros/s/AKfycbzfaWh_ooRTGijLV_7lYFUHFm83oL6DvYt9rt6ze5mDXhtwLv8ymxLX_PGuDTHzmNwe/exec'; 
 const urlParams = new URLSearchParams(window.location.search);
 const groupName = urlParams.get('name');
 const groupCode = urlParams.get('code'); 
@@ -21,13 +20,14 @@ function hideLoading() {
     document.getElementById('loading-overlay').style.display = 'none';
 }
 
+// 🌟 核心修改：移除明碼網址，全面改呼叫 config.js 的安全路由
 async function callAPI(action, data = {}) {
-    const response = await fetch(API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action, data }),
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-    });
-    return await response.json();
+    if (typeof window.churchAPI !== 'function') {
+        alert("⚠️ 系統錯誤：安全路由 (config.js) 尚未載入！");
+        throw new Error("安全路由尚未載入");
+    }
+    // 透過中央路由發送請求，完美隱藏真實 URL 與 Token
+    return await window.churchAPI(action, data);
 }
 
 function getRoleClass(role) {
@@ -62,6 +62,7 @@ async function checkGroupStatus() {
 // --- 跳轉功能 ---
 function goToSchedule() {
     if (!groupCode) return alert("未取得小組編號，無法跳轉。");
+    // 注意：這裡的前端跳轉網址我為你保留原樣，這是安全的
     window.open(`https://jirehwang.github.io/LKC1958_June_1.github.io/?id=${groupCode}`, '_blank');
 }
 
