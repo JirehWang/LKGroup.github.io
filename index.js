@@ -7,7 +7,18 @@ function showLoading(msg = "處理中...") {
 function hideLoading() {
     document.getElementById('loading-overlay').style.display = 'none';
 }
-
+// 🛡️ 哨兵機制：確保中央路由 (config.js) 已經準備好
+async function ensureAPIReady() {
+    let retryCount = 0;
+    // 每 100ms 檢查一次，最多等 5 秒 (50次)
+    while (typeof window.churchAPI !== 'function' && retryCount < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        retryCount++;
+    }
+    if (typeof window.churchAPI !== 'function') {
+        throw new Error("安全路由載入逾時，請確認網路連線或檔案路徑。");
+    }
+}
 // 🚀 網頁載入初始化邏輯 (包含專屬連結攔截)
 window.onload = async () => {
     // 檢查中央路由是否就緒
