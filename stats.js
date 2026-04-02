@@ -10,7 +10,39 @@ function showLoading(msg = "處理中...") {
 function hideLoading() {
     document.getElementById('loading-overlay').style.display = 'none';
 }
+// 2. 加入這段「哨兵」，確保 config.js 跑完了
+async function ensureAPIReady() {
+    let retryCount = 0;
+    while (typeof window.churchAPI !== 'function' && retryCount < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100)); 
+        retryCount++;
+    }
+}
 
+// 3. 升級後的啟動入口
+window.onload = async () => {
+    try {
+        // 先拉起幕簾，告訴使用者系統正在啟動
+        showLoading("🚀 正在啟動系統通道...");
+        
+        // 哨兵在幕後檢查 API 好了沒
+        await ensureAPIReady(); 
+        
+        // API 好了之後，再開始原本的初始化動作 (例如 checkGroupStatus 或 loadStats)
+        if (typeof checkGroupStatus === 'function') {
+            await checkGroupStatus();
+        } else if (typeof loadAdminData === 'function') {
+            await loadAdminData();
+        }
+
+    } catch (e) {
+        console.error(e);
+        alert("系統啟動失敗：" + e.message);
+    } finally {
+        // 最後無論成功失敗，都要把幕簾拉開
+        hideLoading();
+    }
+};
 // 🌟 核心修改：移除明碼網址，改用中央路由安全連線
 async function callAPI(action, data = {}) {
     if (typeof window.churchAPI !== 'function') {
