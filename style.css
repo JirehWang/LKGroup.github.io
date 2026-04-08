@@ -170,3 +170,22 @@ input, select, textarea {
 .btn-query { background: #4CAF50; color: white; margin-top: 0;}
 .btn-query:hover { background: #45a049; }
 .btn-export { background: #2196F3; color: white; margin-top: 0;}
+/* --- 統計中心：進度條與高級視覺化樣式 --- */
+.stats-dashboard { border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+.stats-dashboard table { margin-top: 0; border-radius: 0; box-shadow: none; }
+.stats-dashboard th { background: #37474f; font-weight: 600; letter-spacing: 1px; padding: 15px; }
+.stats-dashboard td { vertical-align: middle; padding: 15px 10px; }
+.stats-dashboard tr:hover { background-color: #f1f8e9; transition: 0.2s; }
+
+/* 進度條容器 */
+.prog-container { width: 100%; background: #e0e0e0; border-radius: 8px; height: 14px; margin-top: 5px; overflow: hidden; }
+.prog-bar { height: 100%; border-radius: 8px; transition: width 0.8s ease-in-out; }
+
+/* 三種聚會專屬顏色 */
+.color-cell { background-color: #4CAF50; }   /* 小組：綠色 */
+.color-sunday { background-color: #2196F3; } /* 主日：藍色 */
+.color-school { background-color: #FF9800; } /* 主日學：橘色 */
+
+/* 數據文字排版 */
+.stat-box { display: flex; flex-direction: column; align-items: flex-start; margin: 0 5px; }
+.stat-labels { width: 100%; display: flex; justify-content: space-between; font-size: 12px; color: #555; font-weight: bold; }
