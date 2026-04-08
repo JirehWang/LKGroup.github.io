@@ -14,34 +14,42 @@
     </div>
 
     <div class="header">
-        <h1>📊 統計與報表中心</h1>
-        <a href="index.html" style="text-decoration: none; color: #666; font-weight: bold;">⬅️ 回首頁</a>
+        <h1 style="color: #2c3e50; display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.2em;">📊</span> 統計與報表中心
+        </h1>
+        <a href="index.html" class="btn" style="background: #e0e0e0; color: #333; text-decoration: none;">⬅️ 回首頁</a>
     </div>
 
-    <div class="filter-box">
+    <div class="filter-box" style="background: linear-gradient(145deg, #ffffff, #f5f7f9);">
         <div class="input-row">
-            小組編號：<input type="text" id="groupCode" placeholder="例如：AA01" style="width: 120px; text-transform: uppercase;">
+            <span style="font-weight: bold; color: #555;">🏷️ 小組編號：</span>
+            <input type="text" id="groupCode" placeholder="例如：AA01" style="width: 140px; text-transform: uppercase; font-weight: bold; text-align: center;">
             <span id="idResult" class="status-badge">等待輸入...</span>
-            <select id="adminGroupSelect" style="display:none;"></select>
+            <select id="adminGroupSelect" style="display:none; padding: 10px; border-radius: 6px; border: 1px solid #ddd;"></select>
         </div>
-        <div class="input-row">
-            查詢區間：
-            <input type="date" id="startDate"> 
-            <span>~</span> 
-            <input type="date" id="endDate">
-            <button class="btn" style="background: #4CAF50;" onclick="loadStats()">🔍 查詢統計</button>
-            <button class="btn" style="background: #2196F3;" onclick="exportToExcel()">📥 匯出 Excel</button>
+        <div class="input-row" style="margin-top: 20px;">
+            <span style="font-weight: bold; color: #555;">📅 查詢區間：</span>
+            <input type="date" id="startDate" style="cursor: pointer;"> 
+            <span style="color: #999; font-weight: bold;">~</span> 
+            <input type="date" id="endDate" style="cursor: pointer;">
+            
+            <div style="margin-left: auto; display: flex; gap: 10px;">
+                <button class="btn" style="background: #4CAF50; box-shadow: 0 4px 6px rgba(76,175,80,0.3);" onclick="loadStats()">🔍 開始分析</button>
+                <button class="btn" style="background: #2196F3; box-shadow: 0 4px 6px rgba(33,150,243,0.3);" onclick="exportToExcel()">📥 匯出報表</button>
+            </div>
         </div>
     </div>
 
-    <div id="resultArea" style="overflow-x: auto;">
+    <div id="resultArea" class="stats-dashboard" style="overflow-x: auto;">
         <table id="statsTable">
             <thead>
                 </thead>
             <tbody>
-                </tbody>
+                <tr><td colspan="5" style="color: #999; padding: 40px 0;">請輸入編號並點擊「開始分析」</td></tr>
+            </tbody>
         </table>
     </div>
+
     <script src="https://jirehwang.github.io/LKERP.github.io/config.js"></script>
     <script src="stats.js"></script>
 </body>
