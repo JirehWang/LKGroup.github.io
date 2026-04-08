@@ -10,6 +10,7 @@ function showLoading(msg = "處理中...") {
 function hideLoading() {
     document.getElementById('loading-overlay').style.display = 'none';
 }
+
 // 2. 加入這段「哨兵」，確保 config.js 跑完了
 async function ensureAPIReady() {
     let retryCount = 0;
@@ -22,13 +23,9 @@ async function ensureAPIReady() {
 // 3. 升級後的啟動入口
 window.onload = async () => {
     try {
-        // 先拉起幕簾，告訴使用者系統正在啟動
         showLoading("🚀 正在啟動系統通道...");
-        
-        // 哨兵在幕後檢查 API 好了沒
         await ensureAPIReady(); 
         
-        // API 好了之後，再開始原本的初始化動作 (例如 checkGroupStatus 或 loadStats)
         if (typeof checkGroupStatus === 'function') {
             await checkGroupStatus();
         } else if (typeof loadAdminData === 'function') {
@@ -39,17 +36,16 @@ window.onload = async () => {
         console.error(e);
         alert("系統啟動失敗：" + e.message);
     } finally {
-        // 最後無論成功失敗，都要把幕簾拉開
         hideLoading();
     }
 };
+
 // 🌟 核心修改：移除明碼網址，改用中央路由安全連線
 async function callAPI(action, data = {}) {
     if (typeof window.churchAPI !== 'function') {
         alert("⚠️ 系統錯誤：安全路由 (config.js) 尚未載入！");
         throw new Error("安全路由尚未載入");
     }
-    // 透過 config.js 的 Base64 加密通道發送請求
     return await window.churchAPI(action, data);
 }
 
@@ -79,7 +75,6 @@ document.getElementById('groupCode').addEventListener('input', (e) => {
 
         showLoading("正在驗證小組編號...");
         try {
-            // 🌟 已改用安全 API 呼叫
             const res = await callAPI('findGroupByCode', { groupCode: code });
             if (res.success) {
                 identifiedGroupName = res.groupName;
@@ -129,10 +124,12 @@ async function loadStats() {
         let res;
         if (isAdmin && group === 'ALL') {
             res = await callAPI('getAllGroupsStats', { groupCode: code, startDate: start, endDate: end });
-            renderAllStats(res, start, end);
+            // 全教會模式：傳遞 true 以顯示「小組」欄位
+            renderMultiStats(res, start, end, true); 
         } else {
             res = await callAPI('getStats', { groupName: group, groupCode: code, startDate: start, endDate: end });
-            renderSingleStats(res, start, end);
+            // 單一小組模式：傳遞 false 隱藏「小組」欄位
+            renderMultiStats(res, start, end, false); 
         }
     } catch (e) {
         alert("查詢失敗，請稍後再試。");
@@ -141,72 +138,84 @@ async function loadStats() {
     }
 }
 
-function renderSingleStats(res, start, end) {
+// 🌟 全新三合一核心渲染函式 (取代原本的 renderSingleStats 與 renderAllStats)
+function renderMultiStats(res, start, end, showGroupCol) {
     if (!res.success) return alert(res.message);
     const thead = document.querySelector('#statsTable thead');
     const tbody = document.querySelector('#statsTable tbody');
     const isSingleDay = (start === end && start !== "");
 
     if (isSingleDay) {
-        thead.innerHTML = `<tr><th>類型</th><th>姓名</th><th>狀態</th></tr>`;
-        const row = res.data[0] || [];
-        if (!row.length) {
-            tbody.innerHTML = '<tr><td colspan="3">當日查無點名紀錄</td></tr>';
+        // --- 📅 單日點名模式 ---
+        let headerHTML = `<tr><th>姓名</th>`;
+        if (showGroupCol) headerHTML += `<th>所屬小組</th>`;
+        headerHTML += `<th>小組出席</th><th>主日崇拜</th><th>主日學</th></tr>`;
+        thead.innerHTML = headerHTML;
+
+        if (!res.data || res.data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="${showGroupCol ? 5 : 4}">當日查無任何紀錄</td></tr>`;
             return;
         }
-        const presentArr = row[1] ? row[1].split(/[,，]/).map(s => s.trim()).filter(n => n) : [];
-        const absentArr = row[2] ? row[2].split(/[,，]/).map(s => s.trim()).filter(n => n) : [];
-        const newFriendsArr = row[3] ? row[3].split(/[,，]/).map(s => s.trim()).filter(n => n) : [];
 
-        let html = "";
-        presentArr.forEach(name => {
-            html += `<tr style="background:#e8f5e9"><td>正式成員</td><td>${name}</td><td style="color:#2e7d32; font-weight:bold;">✅ 出席</td></tr>`;
-        });
-        newFriendsArr.forEach(name => {
-            html += `<tr style="background:#fff3e0"><td>✨ 新朋友</td><td>${name}</td><td style="color:#ef6c00; font-weight:bold;">✅ 出席</td></tr>`;
-        });
-        absentArr.forEach(name => {
-            if (!presentArr.includes(name)) {
-                html += `<tr style="background:#ffebee"><td>正式成員</td><td>${name}</td><td style="color:#c62828;">❌ 缺席</td></tr>`;
-            }
-        });
-        tbody.innerHTML = html;
+        tbody.innerHTML = res.data.map(m => {
+            let rowHTML = `<tr><td style="font-weight:bold; font-size:16px;">${m.name}</td>`;
+            if (showGroupCol) rowHTML += `<td><span style="background:#eee; padding:4px 8px; border-radius:12px; font-size:12px;">${m.group || '未分類'}</span></td>`;
+            
+            // 根據 true/false 顯示打勾或叉叉
+            rowHTML += `
+                <td style="font-size:20px;">${m.cell ? '✅' : '❌'}</td>
+                <td style="font-size:20px;">${m.sunday ? '✅' : '❌'}</td>
+                <td style="font-size:20px;">${m.school ? '✅' : '❌'}</td>
+            </tr>`;
+            return rowHTML;
+        }).join('');
+
     } else {
-        thead.innerHTML = `<tr><th>姓名</th><th>聚會次數</th><th>出席次數</th><th>出席率</th></tr>`;
-        const totalSessions = res.data.length;
-        const counts = {};
-        res.data.forEach(row => {
-            const p = row[1] ? row[1].split(/[,，]/).map(s => s.trim()) : [];
-            const nf = row[3] ? row[3].split(/[,，]/).map(s => s.trim()) : [];
-            const dailySet = [...new Set([...p, ...nf])].filter(n => n);
-            dailySet.forEach(name => { counts[name] = (counts[name] || 0) + 1; });
-        });
-        const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
-        tbody.innerHTML = sorted.map(([name, count]) => {
-            const rate = ((count/totalSessions)*100).toFixed(1);
-            return `<tr><td>${name}</td><td>${totalSessions}</td><td>${count}</td><td>${rate}%</td></tr>`;
+        // --- 📊 區間統計模式 (進度條) ---
+        let headerHTML = `<tr><th style="width:15%">姓名</th>`;
+        if (showGroupCol) headerHTML += `<th style="width:15%">所屬小組</th>`;
+        headerHTML += `<th style="width:23%">🌱 小組聚會</th><th style="width:23%">⛪ 主日崇拜</th><th style="width:23%">📖 主日學</th></tr>`;
+        thead.innerHTML = headerHTML;
+
+        if (!res.data || res.data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="${showGroupCol ? 5 : 4}">此區間內查無資料</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = res.data.map(m => {
+            let rowHTML = `<tr><td style="font-weight:bold; font-size:16px;">${m.name}</td>`;
+            if (showGroupCol) rowHTML += `<td><span style="background:#eee; padding:4px 8px; border-radius:12px; font-size:12px;">${m.group || '未分類'}</span></td>`;
+            
+            // 生成三個進度條 (依賴後端提供的 cellStr, cellRate 等資料)
+            rowHTML += `
+                <td>${createProgressBar(m.cellStr, m.cellRate, 'color-cell')}</td>
+                <td>${createProgressBar(m.sundayStr, m.sundayRate, 'color-sunday')}</td>
+                <td>${createProgressBar(m.schoolStr, m.schoolRate, 'color-school')}</td>
+            </tr>`;
+            return rowHTML;
         }).join('');
     }
 }
 
-function renderAllStats(res, start, end) {
-    if (!res.success) return alert(res.message);
-    const thead = document.querySelector('#statsTable thead');
-    const tbody = document.querySelector('#statsTable tbody');
-    const isSingleDay = (start === end && start !== "");
-
-    if (isSingleDay) {
-        thead.innerHTML = `<tr><th>姓名</th><th>小組</th><th>狀態</th></tr>`;
-        tbody.innerHTML = res.members.map(m => `<tr><td>${m.name}</td><td>${m.group}</td><td style="color:green; font-weight:bold;">V</td></tr>`).join('');
-    } else {
-        thead.innerHTML = `<tr><th>姓名</th><th>小組</th><th>總聚會次數</th><th>出席次數</th><th>出席率</th></tr>`;
-        tbody.innerHTML = res.members.map(m => {
-            const count = Object.keys(m.attendance).length;
-            const total = res.groupSessions[m.group] || 0;
-            const rate = total > 0 ? ((count/total)*100).toFixed(1) : 0;
-            return `<tr><td>${m.name}</td><td>${m.group}</td><td>${total}</td><td>${count}</td><td>${rate}%</td></tr>`;
-        }).join('');
+// 輔助函式：產生進度條 HTML
+function createProgressBar(textStr, percentage, colorClass) {
+    if (!textStr || textStr === "0/0" || textStr.endsWith("/0")) {
+        return `<span style="color:#aaa; font-size:12px;">無聚會</span>`;
     }
+    // 確保 percentage 是一個有效數字，避免 NaN
+    const safePercentage = isNaN(percentage) ? 0 : parseFloat(percentage).toFixed(1);
+    
+    return `
+        <div class="stat-box">
+            <div class="stat-labels">
+                <span>${textStr}</span>
+                <span>${safePercentage}%</span>
+            </div>
+            <div class="prog-container">
+                <div class="prog-bar ${colorClass}" style="width: ${safePercentage}%"></div>
+            </div>
+        </div>
+    `;
 }
 
 // --- Excel 匯出功能 ---
@@ -219,13 +228,18 @@ function exportToExcel() {
         let csv = "\ufeff";
         for (let i = 0; i < table.rows.length; i++) {
             const row = [], cols = table.rows[i].cells;
-            for (let j = 0; j < cols.length; j++) row.push(cols[j].innerText);
+            for (let j = 0; j < cols.length; j++) {
+                // 如果該欄位有進度條文字(例: "4/4 100%")，我們只抓出最上面的字
+                let cellText = cols[j].innerText;
+                cellText = cellText.replace(/\n/g, ' '); // 處理換行
+                row.push(cellText);
+            }
             csv += row.join(",") + "\r\n";
         }
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `小組統計報表_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`;
+        link.download = `聚會統計關聯報表_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`;
         link.click();
         hideLoading();
     }, 500);
