@@ -11,7 +11,7 @@ function hideLoading() {
     document.getElementById('loading-overlay').style.display = 'none';
 }
 
-// 2. 加入這段「哨兵」，確保 config.js 跑完了
+// --- 確保路由載入 ---
 async function ensureAPIReady() {
     let retryCount = 0;
     while (typeof window.churchAPI !== 'function' && retryCount < 50) {
@@ -20,7 +20,7 @@ async function ensureAPIReady() {
     }
 }
 
-// 3. 升級後的啟動入口
+// --- 系統啟動 ---
 window.onload = async () => {
     try {
         showLoading("🚀 正在啟動系統通道...");
@@ -31,7 +31,6 @@ window.onload = async () => {
         } else if (typeof loadAdminData === 'function') {
             await loadAdminData();
         }
-
     } catch (e) {
         console.error(e);
         alert("系統啟動失敗：" + e.message);
@@ -40,7 +39,7 @@ window.onload = async () => {
     }
 };
 
-// 🌟 核心修改：移除明碼網址，改用中央路由安全連線
+// --- API 呼叫 ---
 async function callAPI(action, data = {}) {
     if (typeof window.churchAPI !== 'function') {
         alert("⚠️ 系統錯誤：安全路由 (config.js) 尚未載入！");
@@ -122,14 +121,15 @@ async function loadStats() {
     
     try {
         let res;
+        // 💡 關鍵：如果登入的是最高權限，則前端不顯示主日數據 (!isAdmin)
+        const showSunday = !isAdmin; 
+
         if (isAdmin && group === 'ALL') {
             res = await callAPI('getAllGroupsStats', { groupCode: code, startDate: start, endDate: end });
-            // 全教會模式：傳遞 true 以顯示「小組」欄位
-            renderMultiStats(res, start, end, true); 
+            renderMultiStats(res, start, end, true, showSunday); 
         } else {
             res = await callAPI('getStats', { groupName: group, groupCode: code, startDate: start, endDate: end });
-            // 單一小組模式：傳遞 false 隱藏「小組」欄位
-            renderMultiStats(res, start, end, false); 
+            renderMultiStats(res, start, end, false, showSunday); 
         }
     } catch (e) {
         alert("查詢失敗，請稍後再試。");
@@ -138,22 +138,23 @@ async function loadStats() {
     }
 }
 
-// 🌟 全新三合一核心渲染函式 (取代原本的 renderSingleStats 與 renderAllStats)
-function renderMultiStats(res, start, end, showGroupCol) {
+// 🌟 條件渲染：依據權限決定是否顯示三合一進度條
+function renderMultiStats(res, start, end, showGroupCol, showSunday) {
     if (!res.success) return alert(res.message);
     const thead = document.querySelector('#statsTable thead');
     const tbody = document.querySelector('#statsTable tbody');
     const isSingleDay = (start === end && start !== "");
 
     if (isSingleDay) {
-        // --- 📅 單日點名模式 ---
         let headerHTML = `<tr><th>姓名</th>`;
         if (showGroupCol) headerHTML += `<th>所屬小組</th>`;
-        headerHTML += `<th>小組出席</th><th>主日崇拜</th><th>主日學</th></tr>`;
+        headerHTML += `<th>小組出席</th>`;
+        if (showSunday) headerHTML += `<th>主日崇拜</th><th>主日學</th>`;
+        headerHTML += `</tr>`;
         thead.innerHTML = headerHTML;
 
         if (!res.data || res.data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="${showGroupCol ? 5 : 4}">當日查無任何紀錄</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${showGroupCol ? (showSunday ? 5 : 3) : (showSunday ? 4 : 2)}">當日查無任何紀錄</td></tr>`;
             return;
         }
 
@@ -161,24 +162,30 @@ function renderMultiStats(res, start, end, showGroupCol) {
             let rowHTML = `<tr><td style="font-weight:bold; font-size:16px;">${m.name}</td>`;
             if (showGroupCol) rowHTML += `<td><span style="background:#eee; padding:4px 8px; border-radius:12px; font-size:12px;">${m.group || '未分類'}</span></td>`;
             
-            // 根據 true/false 顯示打勾或叉叉
-            rowHTML += `
-                <td style="font-size:20px;">${m.cell ? '✅' : '❌'}</td>
-                <td style="font-size:20px;">${m.sunday ? '✅' : '❌'}</td>
-                <td style="font-size:20px;">${m.school ? '✅' : '❌'}</td>
-            </tr>`;
+            rowHTML += `<td style="font-size:20px;">${m.cell ? '✅' : '❌'}</td>`;
+            
+            if (showSunday) {
+                rowHTML += `
+                    <td style="font-size:20px;">${m.sunday ? '✅' : '❌'}</td>
+                    <td style="font-size:20px;">${m.school ? '✅' : '❌'}</td>`;
+            }
+            rowHTML += `</tr>`;
             return rowHTML;
         }).join('');
 
     } else {
-        // --- 📊 區間統計模式 (進度條) ---
         let headerHTML = `<tr><th style="width:15%">姓名</th>`;
         if (showGroupCol) headerHTML += `<th style="width:15%">所屬小組</th>`;
-        headerHTML += `<th style="width:23%">🌱 小組聚會</th><th style="width:23%">⛪ 主日崇拜</th><th style="width:23%">📖 主日學</th></tr>`;
+        
+        if (showSunday) {
+            headerHTML += `<th style="width:23%">🌱 小組聚會</th><th style="width:23%">⛪ 主日崇拜</th><th style="width:23%">📖 主日學</th></tr>`;
+        } else {
+            headerHTML += `<th>🌱 小組聚會出席狀況</th></tr>`;
+        }
         thead.innerHTML = headerHTML;
 
         if (!res.data || res.data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="${showGroupCol ? 5 : 4}">此區間內查無資料</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${showGroupCol ? (showSunday ? 5 : 3) : (showSunday ? 4 : 2)}">此區間內查無資料</td></tr>`;
             return;
         }
 
@@ -186,12 +193,14 @@ function renderMultiStats(res, start, end, showGroupCol) {
             let rowHTML = `<tr><td style="font-weight:bold; font-size:16px;">${m.name}</td>`;
             if (showGroupCol) rowHTML += `<td><span style="background:#eee; padding:4px 8px; border-radius:12px; font-size:12px;">${m.group || '未分類'}</span></td>`;
             
-            // 生成三個進度條 (依賴後端提供的 cellStr, cellRate 等資料)
-            rowHTML += `
-                <td>${createProgressBar(m.cellStr, m.cellRate, 'color-cell')}</td>
-                <td>${createProgressBar(m.sundayStr, m.sundayRate, 'color-sunday')}</td>
-                <td>${createProgressBar(m.schoolStr, m.schoolRate, 'color-school')}</td>
-            </tr>`;
+            rowHTML += `<td>${createProgressBar(m.cellStr, m.cellRate, 'color-cell')}</td>`;
+            
+            if (showSunday) {
+                rowHTML += `
+                    <td>${createProgressBar(m.sundayStr, m.sundayRate, 'color-sunday')}</td>
+                    <td>${createProgressBar(m.schoolStr, m.schoolRate, 'color-school')}</td>`;
+            }
+            rowHTML += `</tr>`;
             return rowHTML;
         }).join('');
     }
@@ -202,7 +211,6 @@ function createProgressBar(textStr, percentage, colorClass) {
     if (!textStr || textStr === "0/0" || textStr.endsWith("/0")) {
         return `<span style="color:#aaa; font-size:12px;">無聚會</span>`;
     }
-    // 確保 percentage 是一個有效數字，避免 NaN
     const safePercentage = isNaN(percentage) ? 0 : parseFloat(percentage).toFixed(1);
     
     return `
@@ -218,7 +226,7 @@ function createProgressBar(textStr, percentage, colorClass) {
     `;
 }
 
-// --- Excel 匯出功能 ---
+// --- Excel 匯出功能 (完美支援動態欄位) ---
 function exportToExcel() {
     const table = document.getElementById("statsTable");
     if (table.rows.length <= 1) return alert('目前沒有資料可供匯出');
@@ -229,9 +237,8 @@ function exportToExcel() {
         for (let i = 0; i < table.rows.length; i++) {
             const row = [], cols = table.rows[i].cells;
             for (let j = 0; j < cols.length; j++) {
-                // 如果該欄位有進度條文字(例: "4/4 100%")，我們只抓出最上面的字
                 let cellText = cols[j].innerText;
-                cellText = cellText.replace(/\n/g, ' '); // 處理換行
+                cellText = cellText.replace(/\n/g, ' '); 
                 row.push(cellText);
             }
             csv += row.join(",") + "\r\n";
@@ -239,7 +246,7 @@ function exportToExcel() {
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `聚會統計關聯報表_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`;
+        link.download = `聚會統計報表_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`;
         link.click();
         hideLoading();
     }, 500);
