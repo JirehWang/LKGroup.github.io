@@ -121,10 +121,11 @@ async function loadStats() {
     
     try {
         let res;
-        // 💡 關鍵：如果登入的是最高權限，則前端不顯示主日數據 (!isAdmin)
-        const showSunday = !isAdmin; 
+        // 💡 關鍵更新：如果是最高權限 且 選了「ALL」，才隱藏主日數據。其餘情況全部顯示！
+        const isAllGroups = (isAdmin && group === 'ALL');
+        const showSunday = !isAllGroups; 
 
-        if (isAdmin && group === 'ALL') {
+        if (isAllGroups) {
             res = await callAPI('getAllGroupsStats', { groupCode: code, startDate: start, endDate: end });
             renderMultiStats(res, start, end, true, showSunday); 
         } else {
@@ -137,7 +138,6 @@ async function loadStats() {
         hideLoading();
     }
 }
-
 // 🌟 條件渲染：依據權限決定是否顯示三合一進度條
 function renderMultiStats(res, start, end, showGroupCol, showSunday) {
     if (!res.success) return alert(res.message);
