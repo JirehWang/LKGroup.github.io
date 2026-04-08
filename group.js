@@ -78,6 +78,7 @@ async function checkGroupStatus() {
         if (res.isInitialized) {
             currentMembers = res.members;
             document.getElementById('attendance-panel').style.display = 'block';
+            document.getElementById('init-panel').style.display = 'none'; // 確保隱藏初始化面板
             renderMemberList(res.members);
             
             if (groupCode) {
@@ -86,6 +87,7 @@ async function checkGroupStatus() {
             }
         } else {
             document.getElementById('init-panel').style.display = 'block';
+            document.getElementById('attendance-panel').style.display = 'none'; // 確保隱藏點名面板
         }
     } catch (e) {
         alert("載入失敗，請重新整理頁面。");
@@ -199,7 +201,8 @@ async function submitAttendanceEdit() {
         const res = await callAPI('updateAttendanceRecord', { groupName, originalDate, newDate, present, absent, newFriends });
         if (res.success) {
             alert('修改成功！');
-            location.reload();
+            closeEditAttendanceModal(); // SPA：關閉彈窗
+            if (groupCode) await loadGroupProgress(); // SPA：重新載入下方紀錄
         } else { alert('修改失敗：' + res.message); }
     } finally { hideLoading(); }
 }
@@ -213,7 +216,8 @@ async function deleteAttendanceRecord() {
         const res = await callAPI('deleteAttendanceRecord', { groupName, originalDate });
         if (res.success) {
             alert('紀錄已刪除！');
-            location.reload();
+            closeEditAttendanceModal(); // SPA：關閉彈窗
+            if (groupCode) await loadGroupProgress(); // SPA：重新載入下方紀錄
         } else { alert('刪除失敗：' + res.message); }
     } finally { hideLoading(); }
 }
@@ -227,7 +231,9 @@ async function initGroup() {
     showLoading("正在建立雲端分頁，這可能需要幾秒鐘...");
     try {
         const res = await callAPI('initGroup', { groupName, members });
-        if (res.success) { location.reload(); } 
+        if (res.success) { 
+            await checkGroupStatus(); // SPA：直接重新驗證狀態，無須重整
+        } 
         else { alert(res.message); }
     } finally { hideLoading(); }
 }
@@ -314,7 +320,12 @@ async function saveUpdatedList() {
     showLoading("正在更新雲端名單...");
     try {
         const res = await callAPI('updateMemberList', { groupName, members: editingMembers });
-        if (res.success) { alert('名單更新成功！'); location.reload(); } 
+        if (res.success) { 
+            alert('名單更新成功！'); 
+            currentMembers = [...editingMembers]; // SPA：更新名單暫存
+            renderMemberList(currentMembers); // SPA：重新渲染名單
+            toggleEditMode(); // SPA：關閉編輯彈窗
+        } 
         else { alert('更新失敗：' + res.message); }
     } catch (e) { alert("連線發生錯誤，請稍後再試。"); } finally { hideLoading(); }
 }
@@ -333,7 +344,12 @@ async function submitAttendance() {
     showLoading("正在存入點名資料，請勿關閉網頁...");
     try {
         const res = await callAPI('submitAttendance', { groupName, date, present, absent, newFriends });
-        if (res.success) { alert('點名成功！'); location.reload(); } 
+        if (res.success) { 
+            alert('點名成功！'); 
+            document.querySelectorAll('.attendance-check').forEach(cb => cb.checked = false); // SPA：清空勾選
+            document.getElementById('newFriends').value = ''; // SPA：清空新朋友
+            if (groupCode) await loadGroupProgress(); // SPA：重新載入下方紀錄
+        } 
         else { alert('失敗：' + res.message); }
     } finally { hideLoading(); }
 }
