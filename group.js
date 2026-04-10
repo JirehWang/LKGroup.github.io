@@ -107,7 +107,6 @@ function goToFullStats() {
 }
 
 // --- 📊 歷史進度表載入與渲染 ---
-// --- 📊 歷史進度表載入與渲染 ---
 async function loadGroupProgress() {
     const tbody = document.getElementById('progressTableBody');
     if (!tbody) return;
@@ -124,8 +123,16 @@ async function loadGroupProgress() {
         });
         
         if (res.success && res.data.length > 0) {
-            recentRecordsData = res.data.slice().reverse().slice(0, 3); 
+            // 💡 修改 2：以「真實日期」由新到舊重新排序
+            const sortedData = res.data.slice().sort((a, b) => {
+                return new Date(b[0]).getTime() - new Date(a[0]).getTime();
+            });
+            // 抓取最新的 3 筆
+            recentRecordsData = sortedData.slice(0, 3); 
             
+            // 💡 修改 1：萬用分隔符號：遇到非中文、非英文、非數字、非空白的符號，一律切開
+            const splitRegex = /[^\u4e00-\u9fa5a-zA-Z0-9\s]+/;
+
             tbody.innerHTML = recentRecordsData.map((row, index) => {
                 const dateObj = new Date(row[0]);
                 const dateStr = `${dateObj.getMonth() + 1}/${dateObj.getDate()}`; 
@@ -133,8 +140,9 @@ async function loadGroupProgress() {
                 const fullDateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
                 row.fullDateStr = fullDateStr; 
 
-                const present = row[1] ? row[1].toString().split(/[,，]/).map(s=>s.trim()).filter(n=>n) : [];
-                const newFriends = row[3] ? row[3].toString().split(/[,，]/).map(s=>s.trim()).filter(n=>n) : [];
+                // 套用萬用分隔符
+                const present = row[1] ? row[1].toString().split(splitRegex).map(s=>s.trim()).filter(n=>n) : [];
+                const newFriends = row[3] ? row[3].toString().split(splitRegex).map(s=>s.trim()).filter(n=>n) : [];
                 const totalCount = present.length + newFriends.length;
                 
                 let namesHtml = present.join('、');
@@ -160,11 +168,13 @@ async function loadGroupProgress() {
         tbody.innerHTML = '<tr><td colspan="3" style="color: red;">讀取紀錄失敗</td></tr>';
     }
 }
+
 // --- ✏️ 歷史紀錄修改與刪除 ---
 function openEditAttendanceModal(index) {
     const row = recentRecordsData[index];
     const originalDate = row.fullDateStr;
-    const presentArr = row[1] ? row[1].toString().split(/[,，]/).map(s=>s.trim()).filter(n=>n) : [];
+    const splitRegex = /[^\u4e00-\u9fa5a-zA-Z0-9\s]+/; // 萬用分隔符
+    const presentArr = row[1] ? row[1].toString().split(splitRegex).map(s=>s.trim()).filter(n=>n) : [];
     const newFriendsStr = row[3] ? row[3].toString() : '';
 
     document.getElementById('editOriginalDate').value = originalDate;
