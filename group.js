@@ -107,13 +107,21 @@ function goToFullStats() {
 }
 
 // --- 📊 歷史進度表載入與渲染 ---
+// --- 📊 歷史進度表載入與渲染 ---
 async function loadGroupProgress() {
     const tbody = document.getElementById('progressTableBody');
     if (!tbody) return;
     document.getElementById('progressSection').style.display = 'block';
 
     try {
-        const res = await callAPI('getStats', { groupName: groupName, groupCode: groupCode, startDate: "", endDate: "" });
+        // 💡 關鍵修復：把 startDate 設定為 "RAW_MODE" (專屬暗號)
+        // 告訴後端：我只是點名頁面，請直接給我原始紀錄就好，不用幫我算綜合出席率！
+        const res = await callAPI('getStats', { 
+            groupName: groupName, 
+            groupCode: groupCode, 
+            startDate: "RAW_MODE", 
+            endDate: "" 
+        });
         
         if (res.success && res.data.length > 0) {
             recentRecordsData = res.data.slice().reverse().slice(0, 3); 
@@ -152,7 +160,6 @@ async function loadGroupProgress() {
         tbody.innerHTML = '<tr><td colspan="3" style="color: red;">讀取紀錄失敗</td></tr>';
     }
 }
-
 // --- ✏️ 歷史紀錄修改與刪除 ---
 function openEditAttendanceModal(index) {
     const row = recentRecordsData[index];
