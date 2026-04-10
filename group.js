@@ -10,7 +10,6 @@ let recentRecordsData = [];
 // --- 🚀 啟動哨兵：確保中央路由 (config.js) 已經準備好 ---
 async function ensureAPIReady() {
     let retryCount = 0;
-    // 每 100 毫秒檢查一次，最多等 5 秒 (50次)
     while (typeof window.churchAPI !== 'function' && retryCount < 50) {
         await new Promise(resolve => setTimeout(resolve, 100));
         retryCount++;
@@ -20,21 +19,14 @@ async function ensureAPIReady() {
     }
 }
 
-// --- 📦 網頁載入啟動流程 (優化版) ---
+// --- 📦 網頁載入啟動流程 ---
 window.onload = async () => {
     try {
-        // 1. 先顯示啟動畫面
         showLoading("🚀 正在啟動安全通道...");
-
-        // 2. 哨兵開始守候 API 就緒
         await ensureAPIReady();
-
-        // 3. API 就緒後，執行原本的初始化邏輯
         document.getElementById('displayGroupName').innerText = groupName || '未知名組別';
         document.getElementById('attendanceDate').valueAsDate = new Date();
-        
         await checkGroupStatus();
-
     } catch (e) {
         console.error(e);
         alert("系統啟動失敗：" + e.message);
@@ -42,7 +34,6 @@ window.onload = async () => {
     }
 };
 
-// --- 共用 Loading 功能 ---
 function showLoading(msg = "處理中...") {
     const textEl = document.getElementById('overlay-text');
     const overlayEl = document.getElementById('loading-overlay');
@@ -54,12 +45,8 @@ function hideLoading() {
     if (overlayEl) overlayEl.style.display = 'none';
 }
 
-// 🌟 核心修改：移除明碼網址，改用中央路由安全連線
 async function callAPI(action, data = {}) {
-    if (typeof window.churchAPI !== 'function') {
-        throw new Error("安全路由尚未載入");
-    }
-    // 透過中央路由發送請求
+    if (typeof window.churchAPI !== 'function') throw new Error("安全路由尚未載入");
     return await window.churchAPI(action, data);
 }
 
@@ -70,7 +57,14 @@ function getRoleClass(role) {
     return 'role-default';
 }
 
-// --- 初始化檢查 ---
+// 💡 新增：自動正規化名字字串的工具函式
+// 負責把使用者輸入的各種奇怪符號 (如 ' / + 等) 全部轉成標準逗號
+function normalizeNames(inputString) {
+    if (!inputString) return "";
+    const splitRegex = /[^\u4e00-\u9fa5a-zA-Z0-9\s]+/; // 萬用分隔符號
+    return inputString.split(splitRegex).map(s => s.trim()).filter(n => n).join(',');
+}
+
 async function checkGroupStatus() {
     showLoading("正在載入點名單與聚會紀錄...");
     try {
@@ -78,7 +72,7 @@ async function checkGroupStatus() {
         if (res.isInitialized) {
             currentMembers = res.members;
             document.getElementById('attendance-panel').style.display = 'block';
-            document.getElementById('init-panel').style.display = 'none'; // 確保隱藏初始化面板
+            document.getElementById('init-panel').style.display = 'none'; 
             renderMemberList(res.members);
             
             if (groupCode) {
@@ -87,7 +81,7 @@ async function checkGroupStatus() {
             }
         } else {
             document.getElementById('init-panel').style.display = 'block';
-            document.getElementById('attendance-panel').style.display = 'none'; // 確保隱藏點名面板
+            document.getElementById('attendance-panel').style.display = 'none'; 
         }
     } catch (e) {
         alert("載入失敗，請重新整理頁面。");
@@ -96,7 +90,6 @@ async function checkGroupStatus() {
     }
 }
 
-// --- 跳轉功能 ---
 function goToSchedule() {
     if (!groupCode) return alert("未取得小組編號，無法跳轉。");
     window.open(`https://jirehwang.github.io/LKC1958_June_1.github.io/?id=${groupCode}`, '_blank');
@@ -113,8 +106,6 @@ async function loadGroupProgress() {
     document.getElementById('progressSection').style.display = 'block';
 
     try {
-        // 💡 關鍵修復：把 startDate 設定為 "RAW_MODE" (專屬暗號)
-        // 告訴後端：我只是點名頁面，請直接給我原始紀錄就好，不用幫我算綜合出席率！
         const res = await callAPI('getStats', { 
             groupName: groupName, 
             groupCode: groupCode, 
@@ -123,14 +114,11 @@ async function loadGroupProgress() {
         });
         
         if (res.success && res.data.length > 0) {
-            // 💡 修改 2：以「真實日期」由新到舊重新排序
             const sortedData = res.data.slice().sort((a, b) => {
                 return new Date(b[0]).getTime() - new Date(a[0]).getTime();
             });
-            // 抓取最新的 3 筆
             recentRecordsData = sortedData.slice(0, 3); 
             
-            // 💡 修改 1：萬用分隔符號：遇到非中文、非英文、非數字、非空白的符號，一律切開
             const splitRegex = /[^\u4e00-\u9fa5a-zA-Z0-9\s]+/;
 
             tbody.innerHTML = recentRecordsData.map((row, index) => {
@@ -140,7 +128,6 @@ async function loadGroupProgress() {
                 const fullDateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
                 row.fullDateStr = fullDateStr; 
 
-                // 套用萬用分隔符
                 const present = row[1] ? row[1].toString().split(splitRegex).map(s=>s.trim()).filter(n=>n) : [];
                 const newFriends = row[3] ? row[3].toString().split(splitRegex).map(s=>s.trim()).filter(n=>n) : [];
                 const totalCount = present.length + newFriends.length;
@@ -173,9 +160,10 @@ async function loadGroupProgress() {
 function openEditAttendanceModal(index) {
     const row = recentRecordsData[index];
     const originalDate = row.fullDateStr;
-    const splitRegex = /[^\u4e00-\u9fa5a-zA-Z0-9\s]+/; // 萬用分隔符
+    const splitRegex = /[^\u4e00-\u9fa5a-zA-Z0-9\s]+/; 
     const presentArr = row[1] ? row[1].toString().split(splitRegex).map(s=>s.trim()).filter(n=>n) : [];
-    const newFriendsStr = row[3] ? row[3].toString() : '';
+    // 載入舊資料時，也順便轉換成逗號顯示在輸入框內
+    const newFriendsStr = row[3] ? row[3].toString().split(splitRegex).map(s=>s.trim()).filter(n=>n).join(',') : '';
 
     document.getElementById('editOriginalDate').value = originalDate;
     document.getElementById('editAttendanceDate').value = originalDate;
@@ -204,7 +192,8 @@ function closeEditAttendanceModal() {
 async function submitAttendanceEdit() {
     const originalDate = document.getElementById('editOriginalDate').value;
     const newDate = document.getElementById('editAttendanceDate').value;
-    const newFriends = document.getElementById('editNewFriends').value;
+    // 💡 寫入前：強制轉化為標準逗號
+    const newFriends = normalizeNames(document.getElementById('editNewFriends').value);
 
     const present = Array.from(document.querySelectorAll('.edit-attendance-check:checked')).map(cb => cb.value);
     const absent = Array.from(document.querySelectorAll('.edit-attendance-check:not(:checked)')).map(cb => cb.value);
@@ -218,8 +207,8 @@ async function submitAttendanceEdit() {
         const res = await callAPI('updateAttendanceRecord', { groupName, originalDate, newDate, present, absent, newFriends });
         if (res.success) {
             alert('修改成功！');
-            closeEditAttendanceModal(); // SPA：關閉彈窗
-            if (groupCode) await loadGroupProgress(); // SPA：重新載入下方紀錄
+            closeEditAttendanceModal(); 
+            if (groupCode) await loadGroupProgress(); 
         } else { alert('修改失敗：' + res.message); }
     } finally { hideLoading(); }
 }
@@ -233,13 +222,12 @@ async function deleteAttendanceRecord() {
         const res = await callAPI('deleteAttendanceRecord', { groupName, originalDate });
         if (res.success) {
             alert('紀錄已刪除！');
-            closeEditAttendanceModal(); // SPA：關閉彈窗
-            if (groupCode) await loadGroupProgress(); // SPA：重新載入下方紀錄
+            closeEditAttendanceModal(); 
+            if (groupCode) await loadGroupProgress(); 
         } else { alert('刪除失敗：' + res.message); }
     } finally { hideLoading(); }
 }
 
-// --- 📝 名單初始化與管理 ---
 async function initGroup() {
     const rawMembers = document.getElementById('memberInput').value.split('\n').filter(n => n.trim());
     if (rawMembers.length === 0) return alert('請輸入名單');
@@ -249,7 +237,7 @@ async function initGroup() {
     try {
         const res = await callAPI('initGroup', { groupName, members });
         if (res.success) { 
-            await checkGroupStatus(); // SPA：直接重新驗證狀態，無須重整
+            await checkGroupStatus(); 
         } 
         else { alert(res.message); }
     } finally { hideLoading(); }
@@ -339,9 +327,9 @@ async function saveUpdatedList() {
         const res = await callAPI('updateMemberList', { groupName, members: editingMembers });
         if (res.success) { 
             alert('名單更新成功！'); 
-            currentMembers = [...editingMembers]; // SPA：更新名單暫存
-            renderMemberList(currentMembers); // SPA：重新渲染名單
-            toggleEditMode(); // SPA：關閉編輯彈窗
+            currentMembers = [...editingMembers]; 
+            renderMemberList(currentMembers); 
+            toggleEditMode(); 
         } 
         else { alert('更新失敗：' + res.message); }
     } catch (e) { alert("連線發生錯誤，請稍後再試。"); } finally { hideLoading(); }
@@ -352,7 +340,9 @@ async function submitAttendance() {
     const date = document.getElementById('attendanceDate').value;
     const present = Array.from(document.querySelectorAll('.attendance-check:checked')).map(cb => cb.value);
     const absent = Array.from(document.querySelectorAll('.attendance-check:not(:checked)')).map(cb => cb.value);
-    const newFriends = document.getElementById('newFriends').value;
+    
+    // 💡 寫入前：強制轉化為標準逗號
+    const newFriends = normalizeNames(document.getElementById('newFriends').value);
 
     if (present.length === 0 && !newFriends) {
         if (!confirm("目前出席人數為 0，確定要送出嗎？")) return;
@@ -363,9 +353,9 @@ async function submitAttendance() {
         const res = await callAPI('submitAttendance', { groupName, date, present, absent, newFriends });
         if (res.success) { 
             alert('點名成功！'); 
-            document.querySelectorAll('.attendance-check').forEach(cb => cb.checked = false); // SPA：清空勾選
-            document.getElementById('newFriends').value = ''; // SPA：清空新朋友
-            if (groupCode) await loadGroupProgress(); // SPA：重新載入下方紀錄
+            document.querySelectorAll('.attendance-check').forEach(cb => cb.checked = false); 
+            document.getElementById('newFriends').value = ''; 
+            if (groupCode) await loadGroupProgress(); 
         } 
         else { alert('失敗：' + res.message); }
     } finally { hideLoading(); }
