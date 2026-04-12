@@ -16,7 +16,10 @@
 
     <div class="header">
         <h1>⛪ 小組點名系統</h1>
-        <a href="stats.html" class="stats-link">📊 統計中心</a>
+        <div style="display: flex; gap: 10px;">
+            <a href="manage.html" class="stats-link" style="background-color: #607D8B;">⚙️ 後台管理</a>
+            <a href="stats.html" class="stats-link">📊 統計中心</a>
+        </div>
     </div>
     
     <div id="group-list-container">
@@ -31,6 +34,7 @@
             <button class="submit-btn" onclick="createNewGroup()">確認建立</button>
         </div>
     </div>
+    
     <script src="https://jirehwang.github.io/LKERP.github.io/config.js"></script>
     <script src="index.js"></script>
 </body>
