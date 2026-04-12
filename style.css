@@ -131,11 +131,12 @@ input, select, textarea {
 .edit-member-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; background: white; margin-bottom: 5px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
 .btn-remove { background: #ffebee; color: #c62828; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px; font-weight: bold; transition: 0.2s; margin-top: 0;}
 
-/* 身分標籤 (核心/一般/小羊) */
+/* 身分標籤 (核心/一般/小羊/陪伴) */
 .role-badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-right: 10px; display: inline-block; width: 55px; text-align: center; }
 .role-core { background: #ffebee; color: #c62828; }    
 .role-general { background: #e3f2fd; color: #1565c0; } 
 .role-sheep { background: #e8f5e9; color: #2e7d32; }   
+.role-companion { background: #f3e5f5; color: #6a1b9a; } /* 💡 新增：陪伴同工 (紫色系) */
 .role-default { background: #f5f5f5; color: #757575; }
 
 /* 歷史進度表 */
