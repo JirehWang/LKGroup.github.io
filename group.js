@@ -50,18 +50,18 @@ async function callAPI(action, data = {}) {
     return await window.churchAPI(action, data);
 }
 
+// 💡 更新：加入陪伴同工的 CSS Class
 function getRoleClass(role) {
     if (role === '核心同工') return 'role-core';
     if (role === '一般同工') return 'role-general';
     if (role === '小羊') return 'role-sheep';
+    if (role === '陪伴同工') return 'role-companion'; 
     return 'role-default';
 }
 
-// 💡 新增：自動正規化名字字串的工具函式
-// 負責把使用者輸入的各種奇怪符號 (如 ' / + 等) 全部轉成標準逗號
 function normalizeNames(inputString) {
     if (!inputString) return "";
-    const splitRegex = /[^\u4e00-\u9fa5a-zA-Z0-9\s]+/; // 萬用分隔符號
+    const splitRegex = /[^\u4e00-\u9fa5a-zA-Z0-9\s]+/; 
     return inputString.split(splitRegex).map(s => s.trim()).filter(n => n).join(',');
 }
 
@@ -99,7 +99,6 @@ function goToFullStats() {
     window.open(`https://jirehwang.github.io/LKGroup.github.io/stats.html?id=${groupCode || ''}`, '_blank');
 }
 
-// --- 📊 歷史進度表載入與渲染 ---
 async function loadGroupProgress() {
     const tbody = document.getElementById('progressTableBody');
     if (!tbody) return;
@@ -156,13 +155,12 @@ async function loadGroupProgress() {
     }
 }
 
-// --- ✏️ 歷史紀錄修改與刪除 ---
+// 💡 更新：歷史紀錄修改時，過濾陪伴同工
 function openEditAttendanceModal(index) {
     const row = recentRecordsData[index];
     const originalDate = row.fullDateStr;
     const splitRegex = /[^\u4e00-\u9fa5a-zA-Z0-9\s]+/; 
     const presentArr = row[1] ? row[1].toString().split(splitRegex).map(s=>s.trim()).filter(n=>n) : [];
-    // 載入舊資料時，也順便轉換成逗號顯示在輸入框內
     const newFriendsStr = row[3] ? row[3].toString().split(splitRegex).map(s=>s.trim()).filter(n=>n).join(',') : '';
 
     document.getElementById('editOriginalDate').value = originalDate;
@@ -170,7 +168,11 @@ function openEditAttendanceModal(index) {
     document.getElementById('editNewFriends').value = newFriendsStr;
 
     const listDiv = document.getElementById('editAttendanceMemberList');
-    listDiv.innerHTML = currentMembers.map(m => {
+    
+    // 💡 關鍵：只列出「非陪伴同工」的成員供勾選
+    const attendanceMembers = currentMembers.filter(m => m.role !== '陪伴同工');
+    
+    listDiv.innerHTML = attendanceMembers.map(m => {
         const isChecked = presentArr.includes(m.name) ? 'checked' : '';
         const roleClass = getRoleClass(m.role);
         return `
@@ -192,7 +194,6 @@ function closeEditAttendanceModal() {
 async function submitAttendanceEdit() {
     const originalDate = document.getElementById('editOriginalDate').value;
     const newDate = document.getElementById('editAttendanceDate').value;
-    // 💡 寫入前：強制轉化為標準逗號
     const newFriends = normalizeNames(document.getElementById('editNewFriends').value);
 
     const present = Array.from(document.querySelectorAll('.edit-attendance-check:checked')).map(cb => cb.value);
@@ -243,9 +244,19 @@ async function initGroup() {
     } finally { hideLoading(); }
 }
 
+// 💡 更新：今日點名時，過濾陪伴同工
 function renderMemberList(members) {
     const list = document.getElementById('memberList');
-    list.innerHTML = members.map(m => {
+    
+    // 💡 關鍵：只列出「非陪伴同工」的成員供勾選
+    const attendanceMembers = members.filter(m => m.role !== '陪伴同工');
+
+    if (attendanceMembers.length === 0) {
+        list.innerHTML = '<div style="color:#999; padding: 10px;">名單內目前只有陪伴同工，無人可點名。</div>';
+        return;
+    }
+
+    list.innerHTML = attendanceMembers.map(m => {
         const roleClass = getRoleClass(m.role);
         return `
             <div class="member-item">
@@ -269,6 +280,7 @@ function toggleEditMode() {
     }
 }
 
+// 💡 更新：編輯名單的下拉選單加入「陪伴同工」
 function renderEditList() {
     const container = document.getElementById('editMemberList');
     if (editingMembers.length === 0) {
@@ -284,6 +296,7 @@ function renderEditList() {
                         <option value="核心同工" ${m.role==='核心同工'?'selected':''}>核心同工</option>
                         <option value="一般同工" ${m.role==='一般同工'?'selected':''}>一般同工</option>
                         <option value="小羊" ${m.role==='小羊'?'selected':''}>小羊</option>
+                        <option value="陪伴同工" ${m.role==='陪伴同工'?'selected':''}>陪伴同工</option>
                     </select>
                 </div>
                 <button class="btn-remove" onclick="removeEditMember(${index})">🗑️ 移除</button>
@@ -292,13 +305,16 @@ function renderEditList() {
     }).join('');
 }
 
-function updateMemberRole(index, newRole) { editingMembers[index].role = newRole; }
-
+// 💡 更新：新增名單的下拉選單（因為 HTML 寫死了，這裡用 JS 動態替換原本的結構）
+// (請確保 HTML 裡面的 #newMemberRole 選單也有加上 <option value="陪伴同工">陪伴同工</option>)
+// 下方是 JS 新增邏輯：
 function addEditMember() {
     const input = document.getElementById('newMemberInput');
-    const roleSelect = document.getElementById('newMemberRole');
+    let roleSelect = document.getElementById('newMemberRole');
+    
+    // 防呆：如果前端 HTML 還沒加，強制抓取當前值或預設給小羊
     const newName = input.value.trim();
-    const newRole = roleSelect.value;
+    const newRole = roleSelect ? roleSelect.value : '小羊'; 
     
     if (!newName) return alert("請輸入要新增的姓名！");
     if (editingMembers.some(m => m.name === newName)) return alert("此人已經在名單中了！");
@@ -307,6 +323,8 @@ function addEditMember() {
     input.value = ""; 
     renderEditList(); 
 }
+
+function updateMemberRole(index, newRole) { editingMembers[index].role = newRole; }
 
 function removeEditMember(index) {
     const nameToRemove = editingMembers[index].name;
@@ -335,13 +353,11 @@ async function saveUpdatedList() {
     } catch (e) { alert("連線發生錯誤，請稍後再試。"); } finally { hideLoading(); }
 }
 
-// --- 💾 今日點名 ---
 async function submitAttendance() {
     const date = document.getElementById('attendanceDate').value;
     const present = Array.from(document.querySelectorAll('.attendance-check:checked')).map(cb => cb.value);
     const absent = Array.from(document.querySelectorAll('.attendance-check:not(:checked)')).map(cb => cb.value);
     
-    // 💡 寫入前：強制轉化為標準逗號
     const newFriends = normalizeNames(document.getElementById('newFriends').value);
 
     if (present.length === 0 && !newFriends) {
