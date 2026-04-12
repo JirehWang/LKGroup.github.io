@@ -21,15 +21,15 @@
     </div>
 
     <div id="login-panel" class="filter-box" style="text-align: center; padding: 40px 20px;">
-        <h2>🛡️ 請輸入最高管理員代碼</h2>
-        <input type="password" id="adminInput" placeholder="輸入代碼" style="font-size: 18px; text-align: center; margin-bottom: 15px; width: 200px;">
+        <h2>🛡️ 請輸入系統權限密碼</h2>
+        <input type="password" id="adminInput" placeholder="最高權限 或 您的組別代碼" style="font-size: 16px; text-align: center; margin-bottom: 15px; width: 220px;">
         <br>
-        <button class="btn" style="background: #c62828; font-size: 16px;" onclick="verifyAdmin()">🔓 登入管理後台</button>
+        <button class="btn" style="background: #c62828; font-size: 16px;" onclick="verifyAdmin()">🔓 登入管理</button>
     </div>
 
     <div id="manage-panel" style="display: none;">
         <div class="filter-box" style="background: linear-gradient(145deg, #ffffff, #f5f7f9);">
-            <h3 style="margin-top: 0;">📋 小組參數管理</h3>
+            <h3 id="manage-title" style="margin-top: 0;">📋 小組參數管理</h3>
             <p style="color: #666; font-size: 14px;">修改名稱時，系統將自動同步修改資料庫的關聯分頁名稱，請謹慎操作。</p>
             <table id="groupsTable">
                 <thead>
