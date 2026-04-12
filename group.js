@@ -155,7 +155,7 @@ async function loadGroupProgress() {
     }
 }
 
-// 💡 更新：歷史紀錄修改時，過濾陪伴同工
+// 💡 更新：歷史紀錄修改時，同樣照常顯示所有人
 function openEditAttendanceModal(index) {
     const row = recentRecordsData[index];
     const originalDate = row.fullDateStr;
@@ -169,10 +169,8 @@ function openEditAttendanceModal(index) {
 
     const listDiv = document.getElementById('editAttendanceMemberList');
     
-    // 💡 關鍵：只列出「非陪伴同工」的成員供勾選
-    const attendanceMembers = currentMembers.filter(m => m.role !== '陪伴同工');
-    
-    listDiv.innerHTML = attendanceMembers.map(m => {
+    // 直接列出所有人
+    listDiv.innerHTML = currentMembers.map(m => {
         const isChecked = presentArr.includes(m.name) ? 'checked' : '';
         const roleClass = getRoleClass(m.role);
         return `
@@ -244,19 +242,14 @@ async function initGroup() {
     } finally { hideLoading(); }
 }
 
-// 💡 更新：今日點名時，過濾陪伴同工
+// 💡 更新：今日點名時，照常顯示所有組員 (包含陪伴同工)，讓他們能被記錄
 function renderMemberList(members) {
     const list = document.getElementById('memberList');
-    
-    // 💡 關鍵：只列出「非陪伴同工」的成員供勾選
-    const attendanceMembers = members.filter(m => m.role !== '陪伴同工');
-
-    if (attendanceMembers.length === 0) {
-        list.innerHTML = '<div style="color:#999; padding: 10px;">名單內目前只有陪伴同工，無人可點名。</div>';
+    if (members.length === 0) {
+        list.innerHTML = '<div style="color:#999; padding: 10px;">目前名單為空</div>';
         return;
     }
-
-    list.innerHTML = attendanceMembers.map(m => {
+    list.innerHTML = members.map(m => {
         const roleClass = getRoleClass(m.role);
         return `
             <div class="member-item">
