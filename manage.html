@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小組點名系統 - 後台管理</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-msg" id="overlay-text">處理中，請稍候...</div>
+    </div>
+
+    <div class="header">
+        <h1 style="color: #c62828; display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.2em;">⚙️</span> 系統後台管理
+        </h1>
+        <a href="index.html" class="btn" style="background: #e0e0e0; color: #333; text-decoration: none;">⬅️ 回首頁</a>
+    </div>
+
+    <div id="login-panel" class="filter-box" style="text-align: center; padding: 40px 20px;">
+        <h2>🛡️ 請輸入最高管理員代碼</h2>
+        <input type="password" id="adminInput" placeholder="輸入代碼" style="font-size: 18px; text-align: center; margin-bottom: 15px; width: 200px;">
+        <br>
+        <button class="btn" style="background: #c62828; font-size: 16px;" onclick="verifyAdmin()">🔓 登入管理後台</button>
+    </div>
+
+    <div id="manage-panel" style="display: none;">
+        <div class="filter-box" style="background: linear-gradient(145deg, #ffffff, #f5f7f9);">
+            <h3 style="margin-top: 0;">📋 小組參數管理</h3>
+            <p style="color: #666; font-size: 14px;">修改名稱時，系統將自動同步修改資料庫的關聯分頁名稱，請謹慎操作。</p>
+            <table id="groupsTable">
+                <thead>
+                    <tr>
+                        <th style="width: 30%;">小組名稱</th>
+                        <th style="width: 30%;">專屬代碼</th>
+                        <th style="width: 40%;">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="edit-group-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeEditModal()">&times;</span>
+            <h3 style="color: #2196F3;">✏️ 修改小組資訊</h3>
+            <p style="color: #e53935; font-size: 12px; font-weight: bold;">⚠️ 若修改名稱，系統會花費幾秒鐘重新命名後端資料庫。</p>
+            
+            <div style="margin-top: 15px;">
+                <label style="font-weight: bold; color: #555;">原始名稱：</label>
+                <input type="text" id="editOldName" disabled style="background: #f5f5f5; width: 100%; margin-top: 5px; color: #999;">
+            </div>
+            
+            <div style="margin-top: 15px;">
+                <label style="font-weight: bold; color: #555;">新名稱：</label>
+                <input type="text" id="editNewName" style="width: 100%; margin-top: 5px;">
+            </div>
+
+            <div style="margin-top: 15px;">
+                <label style="font-weight: bold; color: #555;">新代碼 (需4碼以上)：</label>
+                <input type="text" id="editNewCode" style="width: 100%; margin-top: 5px; text-transform: uppercase;">
+            </div>
+
+            <button class="btn" style="background: #4CAF50; width: 100%; margin-top: 25px; font-size: 16px;" onclick="saveGroupEdit()">💾 儲存修改</button>
+        </div>
+    </div>
+
+    <script src="https://jirehwang.github.io/LKERP.github.io/config.js"></script>
+    <script src="manage.js"></script>
+</body>
+</html>
