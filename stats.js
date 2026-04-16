@@ -127,10 +127,10 @@ async function loadStats() {
 
         if (isAllGroups) {
             res = await callAPI('getAllGroupsStats', { groupCode: code, startDate: start, endDate: end });
-            renderMultiStats(res, start, end, true, showSunday); 
+            (res, start, end, true, showSunday); 
         } else {
             res = await callAPI('getStats', { groupName: group, groupCode: code, startDate: start, endDate: end });
-            renderMultiStats(res, start, end, false, showSunday); 
+            (res, start, end, false, showSunday); 
         }
     } catch (e) {
         alert("查詢失敗，請稍後再試。");
@@ -138,6 +138,7 @@ async function loadStats() {
         hideLoading();
     }
 }
+
 // 🌟 條件渲染：依據權限決定是否顯示三合一進度條
 function renderMultiStats(res, start, end, showGroupCol, showSunday) {
     if (!res.success) return alert(res.message);
@@ -162,7 +163,12 @@ function renderMultiStats(res, start, end, showGroupCol, showSunday) {
             let rowHTML = `<tr><td style="font-weight:bold; font-size:16px;">${m.name}</td>`;
             if (showGroupCol) rowHTML += `<td><span style="background:#eee; padding:4px 8px; border-radius:12px; font-size:12px;">${m.group || '未分類'}</span></td>`;
             
-            rowHTML += `<td style="font-size:20px;">${m.cell ? '✅' : '❌'}</td>`;
+            // 💡 修改點 1：單日模式下，陪伴同工顯示「不列入統計」
+            if (m.isCompanion) {
+                rowHTML += `<td style="color: #666; font-size: 14px;">不列入統計</td>`;
+            } else {
+                rowHTML += `<td style="font-size:20px;">${m.cell ? '✅' : '❌'}</td>`;
+            }
             
             if (showSunday) {
                 rowHTML += `
@@ -193,6 +199,7 @@ function renderMultiStats(res, start, end, showGroupCol, showSunday) {
             let rowHTML = `<tr><td style="font-weight:bold; font-size:16px;">${m.name}</td>`;
             if (showGroupCol) rowHTML += `<td><span style="background:#eee; padding:4px 8px; border-radius:12px; font-size:12px;">${m.group || '未分類'}</span></td>`;
             
+            // 💡 呼叫進度條生成，內部會自動處理「不列入統計」
             rowHTML += `<td>${createProgressBar(m.cellStr, m.cellRate, 'color-cell')}</td>`;
             
             if (showSunday) {
@@ -208,10 +215,17 @@ function renderMultiStats(res, start, end, showGroupCol, showSunday) {
 
 // 輔助函式：產生進度條 HTML
 function createProgressBar(textStr, percentage, colorClass) {
+    // 💡 修改點 2：處理陪伴同工的特殊文字顯示
+    if (percentage === "不列入統計") {
+        return `<span style="color:#666; font-size:14px;">不列入統計</span>`;
+    }
+
     if (!textStr || textStr === "0/0" || textStr.endsWith("/0")) {
         return `<span style="color:#aaa; font-size:12px;">無聚會</span>`;
     }
-    const safePercentage = isNaN(percentage) ? 0 : parseFloat(percentage).toFixed(1);
+    
+    // 💡 修改點 3：確保數值安全轉換
+    const safePercentage = isNaN(parseFloat(percentage)) ? 0 : parseFloat(percentage).toFixed(1);
     
     return `
         <div class="stat-box">
