@@ -26,7 +26,6 @@ window.onload = async () => {
     try {
         showLoading("🚀 正在啟動系統通道...");
         await ensureAPIReady(); 
-        // 啟動時不自動載入資料，等待使用者輸入編號
     } catch (e) {
         console.error(e);
         alert("系統啟動失敗：" + e.message);
@@ -113,8 +112,6 @@ async function loadStats() {
     
     try {
         if (reportType === "WEEKLY") {
-            // 📅 模式：每週出席人次 (RAW_MODE)
-            // 注意：RAW_MODE 目前暫不支援全小組彙整(ALL)，強制指定單一小組
             const targetGroup = (group === "ALL") ? "小組清單" : group; 
             const res = await callAPI('getStats', { 
                 groupName: targetGroup, 
@@ -123,7 +120,6 @@ async function loadStats() {
             });
             renderWeeklyStats(res, start, end);
         } else {
-            // 👤 模式：組員出席率 (原本邏輯)
             const isAllGroups = (isAdmin && group === 'ALL');
             let res;
             if (isAllGroups) {
@@ -141,7 +137,7 @@ async function loadStats() {
     }
 }
 
-// --- 渲染：每週出席人次 (類似點名介面格式) ---
+// --- 渲染：每週出席人次 (移除缺席，增加名單) ---
 function renderWeeklyStats(res, start, end) {
     if (!res.success) return alert(res.message);
     const thead = document.querySelector('#statsTable thead');
@@ -149,15 +145,14 @@ function renderWeeklyStats(res, start, end) {
 
     thead.innerHTML = `
         <tr>
-            <th>聚會日期</th>
-            <th>出席人數</th>
-            <th>新朋友</th>
-            <th>缺席人數</th>
-            <th>總人次</th>
+            <th style="width:15%">聚會日期</th>
+            <th style="width:10%">出席人數</th>
+            <th style="width:10%">新朋友</th>
+            <th style="width:10%">總人次</th>
+            <th style="text-align:left;">出席名單</th>
         </tr>
     `;
 
-    // 進行日期區間過濾 (因為 RAW_MODE 是抓全部)
     const sLimit = start ? new Date(start).getTime() : 0;
     const eLimit = end ? new Date(end).getTime() : Infinity;
 
@@ -171,35 +166,40 @@ function renderWeeklyStats(res, start, end) {
         return;
     }
 
-    // 排序：日期由新到舊
     filteredRows.sort((a, b) => new Date(b[0]) - new Date(a[0]));
 
     tbody.innerHTML = filteredRows.map(row => {
         const dateStr = row[0] ? new Date(row[0]).toLocaleDateString() : "未知";
-        const presentCount = row[1] ? row[1].toString().split(splitRegex).filter(n => n.trim()).length : 0;
-        const absentCount = row[2] ? row[2].toString().split(splitRegex).filter(n => n.trim()).length : 0;
-        const newFriendsCount = row[3] ? row[3].toString().split(splitRegex).filter(n => n.trim()).length : 0;
+        // 解析出席者與新朋友
+        const presentArr = row[1] ? row[1].toString().split(splitRegex).filter(n => n.trim()) : [];
+        const newFriendsArr = row[3] ? row[3].toString().split(splitRegex).filter(n => n.trim()) : [];
+        
+        const presentCount = presentArr.length;
+        const newFriendsCount = newFriendsArr.length;
         const total = presentCount + newFriendsCount;
+
+        // 組合顯示名單
+        const namesHTML = presentArr.map(name => `<span style="display:inline-block; background:#e8f5e9; color:#2e7d32; padding:2px 8px; border-radius:4px; margin:2px; font-size:13px;">${name}</span>`).join('');
 
         return `
             <tr>
                 <td style="font-weight:bold;">${dateStr}</td>
-                <td style="color:#2ecc71; font-weight:bold;">${presentCount}</td>
-                <td style="color:#f1c40f; font-weight:bold;">${newFriendsCount}</td>
-                <td style="color:#e74c3c;">${absentCount}</td>
-                <td style="background:#f9f9f9; font-weight:bold;">${total}</td>
+                <td style="color:#2ecc71; font-weight:bold; font-size:18px;">${presentCount}</td>
+                <td style="color:#f1c40f; font-weight:bold; font-size:18px;">${newFriendsCount}</td>
+                <td style="background:#f9f9f9; font-weight:bold; font-size:18px;">${total}</td>
+                <td style="text-align:left; padding:10px;">${namesHTML || '<span style="color:#ccc;">(無)</span>'}</td>
             </tr>
         `;
     }).join('');
 }
 
-// --- 渲染：組員出席率 (原本邏輯，已包含後端排除陪伴同工) ---
+// --- 渲染：組員出席率 ---
 function renderMemberStats(res, start, end, showGroupCol) {
     if (!res.success) return alert(res.message);
     const thead = document.querySelector('#statsTable thead');
     const tbody = document.querySelector('#statsTable tbody');
     const isSingleDay = (start === end && start !== "");
-    const showSunday = !showGroupCol; // 全小組彙整時隱藏主日細節以維持寬度
+    const showSunday = !showGroupCol;
 
     if (isSingleDay) {
         thead.innerHTML = `
