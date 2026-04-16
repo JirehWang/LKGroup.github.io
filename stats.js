@@ -234,8 +234,8 @@ function renderMemberStats(res, start, end, showGroupCol) {
             <tr>
                 <th style="width:15%">姓名</th>
                 ${showGroupCol ? '<th style="width:15%">所屬小組</th>' : ''}
-                <th>🌱 小組出席率</th>
-                ${showSunday ? '<th style="width:20%">⛪ 主日率</th><th style="width:20%">📖 主日學率</th>' : ''}
+                <th style="width: 23%;">🌱 小組出席率</th>
+                ${showSunday ? '<th style="width: 23%;">⛪ 主日率</th><th style="width: 23%;">📖 主日學率</th>' : ''}
             </tr>
         `;
         tbody.innerHTML = res.data.map(m => `
