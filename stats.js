@@ -121,7 +121,6 @@ async function loadStats() {
     
     try {
         let res;
-        // 💡 關鍵更新：如果是最高權限 且 選了「ALL」，才隱藏主日數據。其餘情況全部顯示！
         const isAllGroups = (isAdmin && group === 'ALL');
         const showSunday = !isAllGroups; 
 
@@ -138,12 +137,16 @@ async function loadStats() {
         hideLoading();
     }
 }
+
 // 🌟 條件渲染：依據權限決定是否顯示三合一進度條
 function renderMultiStats(res, start, end, showGroupCol, showSunday) {
     if (!res.success) return alert(res.message);
     const thead = document.querySelector('#statsTable thead');
     const tbody = document.querySelector('#statsTable tbody');
     const isSingleDay = (start === end && start !== "");
+
+    // 💡 關鍵過濾：在顯示之前，先將陪伴同工從陣列中完全移除
+    const filteredData = res.data ? res.data.filter(m => !m.isCompanion) : [];
 
     if (isSingleDay) {
         let headerHTML = `<tr><th>姓名</th>`;
@@ -153,12 +156,12 @@ function renderMultiStats(res, start, end, showGroupCol, showSunday) {
         headerHTML += `</tr>`;
         thead.innerHTML = headerHTML;
 
-        if (!res.data || res.data.length === 0) {
+        if (filteredData.length === 0) {
             tbody.innerHTML = `<tr><td colspan="${showGroupCol ? (showSunday ? 5 : 3) : (showSunday ? 4 : 2)}">當日查無任何紀錄</td></tr>`;
             return;
         }
 
-        tbody.innerHTML = res.data.map(m => {
+        tbody.innerHTML = filteredData.map(m => {
             let rowHTML = `<tr><td style="font-weight:bold; font-size:16px;">${m.name}</td>`;
             if (showGroupCol) rowHTML += `<td><span style="background:#eee; padding:4px 8px; border-radius:12px; font-size:12px;">${m.group || '未分類'}</span></td>`;
             
@@ -184,12 +187,12 @@ function renderMultiStats(res, start, end, showGroupCol, showSunday) {
         }
         thead.innerHTML = headerHTML;
 
-        if (!res.data || res.data.length === 0) {
+        if (filteredData.length === 0) {
             tbody.innerHTML = `<tr><td colspan="${showGroupCol ? (showSunday ? 5 : 3) : (showSunday ? 4 : 2)}">此區間內查無資料</td></tr>`;
             return;
         }
 
-        tbody.innerHTML = res.data.map(m => {
+        tbody.innerHTML = filteredData.map(m => {
             let rowHTML = `<tr><td style="font-weight:bold; font-size:16px;">${m.name}</td>`;
             if (showGroupCol) rowHTML += `<td><span style="background:#eee; padding:4px 8px; border-radius:12px; font-size:12px;">${m.group || '未分類'}</span></td>`;
             
