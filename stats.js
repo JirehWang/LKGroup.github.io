@@ -137,7 +137,7 @@ async function loadStats() {
     }
 }
 
-// --- 渲染：每週出席人次 (移除缺席，增加名單) ---
+// --- 渲染：每週出席人次 (包含出席組員與新朋友名單) ---
 function renderWeeklyStats(res, start, end) {
     if (!res.success) return alert(res.message);
     const thead = document.querySelector('#statsTable thead');
@@ -149,7 +149,7 @@ function renderWeeklyStats(res, start, end) {
             <th style="width:10%">出席人數</th>
             <th style="width:10%">新朋友</th>
             <th style="width:10%">總人次</th>
-            <th style="text-align:left;">出席名單</th>
+            <th style="text-align:left;">出席名單 (組員 / ✨新朋友)</th>
         </tr>
     `;
 
@@ -170,7 +170,8 @@ function renderWeeklyStats(res, start, end) {
 
     tbody.innerHTML = filteredRows.map(row => {
         const dateStr = row[0] ? new Date(row[0]).toLocaleDateString() : "未知";
-        // 解析出席者與新朋友
+        
+        // 解析出席者 (row[1]) 與新朋友 (row[3])
         const presentArr = row[1] ? row[1].toString().split(splitRegex).filter(n => n.trim()) : [];
         const newFriendsArr = row[3] ? row[3].toString().split(splitRegex).filter(n => n.trim()) : [];
         
@@ -178,8 +179,14 @@ function renderWeeklyStats(res, start, end) {
         const newFriendsCount = newFriendsArr.length;
         const total = presentCount + newFriendsCount;
 
-        // 組合顯示名單
-        const namesHTML = presentArr.map(name => `<span style="display:inline-block; background:#e8f5e9; color:#2e7d32; padding:2px 8px; border-radius:4px; margin:2px; font-size:13px;">${name}</span>`).join('');
+        // 💡 組合顯示名單：組員用綠色，新朋友用黃色加星星
+        const attendeeHTML = presentArr.map(name => 
+            `<span style="display:inline-block; background:#e8f5e9; color:#2e7d32; padding:2px 8px; border-radius:4px; margin:2px; font-size:13px; border:1px solid #c8e6c9;">${name}</span>`
+        ).join('');
+
+        const newFriendsHTML = newFriendsArr.map(name => 
+            `<span style="display:inline-block; background:#fff9c4; color:#f57f17; padding:2px 8px; border-radius:4px; margin:2px; font-size:13px; border:1px solid #ffe082;">✨ ${name}</span>`
+        ).join('');
 
         return `
             <tr>
@@ -187,7 +194,11 @@ function renderWeeklyStats(res, start, end) {
                 <td style="color:#2ecc71; font-weight:bold; font-size:18px;">${presentCount}</td>
                 <td style="color:#f1c40f; font-weight:bold; font-size:18px;">${newFriendsCount}</td>
                 <td style="background:#f9f9f9; font-weight:bold; font-size:18px;">${total}</td>
-                <td style="text-align:left; padding:10px;">${namesHTML || '<span style="color:#ccc;">(無)</span>'}</td>
+                <td style="text-align:left; padding:10px;">
+                    ${attendeeHTML}
+                    ${newFriendsHTML}
+                    ${(!attendeeHTML && !newFriendsHTML) ? '<span style="color:#ccc;">(無人出席)</span>' : ''}
+                </td>
             </tr>
         `;
     }).join('');
