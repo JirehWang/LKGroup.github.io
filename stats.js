@@ -1,267 +1,248 @@
-let identifiedGroupName = "";
-let isAdmin = false;
-let debounceTimer;
+/**
+ * 1. 取得單一小組統計 (修正陪伴同工顯示與排序)
+ */
+function getStats(groupName, groupCode, startDate, endDate) {
+  const isAdminCall = (groupCode === ADMIN_CODE);
+  const isRawMode = (startDate === "RAW_MODE"); 
 
-// --- Loading 控制 ---
-function showLoading(msg = "處理中...") {
-    document.getElementById('overlay-text').innerText = msg;
-    document.getElementById('loading-overlay').style.display = 'flex';
-}
-function hideLoading() {
-    document.getElementById('loading-overlay').style.display = 'none';
+  if (!isAdminCall) {
+    const verify = verifyGroup(groupName, groupCode);
+    if (!verify.success) return { success: false, message: "權限不足" };
+  }
+
+  const rSheet = getSheetSafely(groupName + "_點名紀錄");
+  if (!rSheet) return { success: false, message: "找不到紀錄" };
+
+  const allValues = rSheet.getDataRange().getValues();
+  const rows = allValues.slice(1); 
+
+  if (isRawMode) {
+      return { success: true, groupName: groupName, isSingleDay: false, data: rows };
+  }
+
+  const mSheet = getSheetSafely(groupName + "_名單");
+  const companionSet = new Set();
+  const allMembers = [];
+  
+  if (mSheet) {
+    mSheet.getDataRange().getValues().slice(1).forEach(r => {
+      const mName = cleanName(r[0]);
+      const role = r[1] ? String(r[1]).trim() : "";
+      if (!mName) return;
+      
+      if (role === "陪伴同工") {
+        companionSet.add(mName);
+      }
+      allMembers.push(mName); // 確保陪伴同工也在名單中
+    });
+  }
+  
+  const sDate = startDate ? new Date(startDate) : null;
+  const eDate = endDate ? new Date(endDate) : null;
+  if (sDate) sDate.setHours(0, 0, 0, 0);
+  if (eDate) eDate.setHours(23, 59, 59, 999); 
+  
+  const filteredRows = rows.filter(row => {
+    if (!row[0]) return false;
+    const time = new Date(row[0]).getTime();
+    if (sDate && time < sDate.getTime()) return false;
+    if (eDate && time > eDate.getTime()) return false;
+    return true;
+  });
+
+  const isSingleDay = (startDate === endDate && startDate !== "");
+  const sundayData = fetchSundayDataEngine(sDate, eDate, allMembers);
+
+  if (isSingleDay) {
+    if (filteredRows.length === 0) return { success: true, groupName: groupName, isSingleDay: true, data: [] };
+    
+    const row = filteredRows[0];
+    const presentNames = row[1] ? row[1].toString().split(splitRegex).map(s => cleanName(s)).filter(n => n) : [];
+    
+    const singleDayData = allMembers.map(member => {
+        const isCompanion = companionSet.has(member);
+        return {
+            name: member,
+            group: groupName,
+            cell: presentNames.includes(member),
+            isCompanion: isCompanion,
+            // 單日模式也標註不列入統計
+            cellRate: isCompanion ? "不列入統計" : (presentNames.includes(member) ? "出席" : "缺席"),
+            sunday: sundayData[member].sundayCount > 0,
+            school: sundayData[member].schoolCount > 0
+        };
+    });
+
+    return { success: true, groupName: groupName, isSingleDay: true, data: singleDayData };
+  }
+
+  // 區間模式
+  const totalCellSessions = filteredRows.length;
+  const cellCounts = {};
+  allMembers.forEach(m => cellCounts[m] = 0);
+
+  filteredRows.forEach(row => {
+    const presentList = row[1] ? row[1].toString().split(splitRegex).map(s => cleanName(s)) : [];
+    const newFriendsList = row[3] ? row[3].toString().split(splitRegex).map(s => cleanName(s)) : [];
+    const combinedList = [...new Set([...presentList, ...newFriendsList])].filter(n => n);
+
+    combinedList.forEach(name => {
+      if (cellCounts.hasOwnProperty(name)) {
+        cellCounts[name]++;
+      } else {
+        cellCounts[name] = 1;
+        sundayData[name] = { sundayCount: 0, sundayTotal: 0, schoolCount: 0, schoolTotal: 0 };
+        allMembers.push(name);
+      }
+    });
+  });
+
+  const intervalData = allMembers.map(member => {
+      const isCompanion = companionSet.has(member);
+      const cCount = cellCounts[member] || 0;
+      const cTotal = totalCellSessions;
+      const cRate = cTotal > 0 ? ((cCount / cTotal) * 100).toFixed(1) : 0;
+      
+      const sData = sundayData[member];
+      return {
+          name: member,
+          group: groupName,
+          isCompanion: isCompanion,
+          cellRate: isCompanion ? "不列入統計" : cRate,
+          cellStr: isCompanion ? "-" : `${cCount}/${cTotal}`,
+          sundayRate: sData.sundayTotal > 0 ? ((sData.sundayCount / sData.sundayTotal) * 100).toFixed(1) : 0,
+          sundayStr: `${sData.sundayCount}/${sData.sundayTotal}`,
+          schoolRate: sData.schoolTotal > 0 ? ((sData.schoolCount / sData.schoolTotal) * 100).toFixed(1) : 0,
+          schoolStr: `${sData.schoolCount}/${sData.schoolTotal}`
+      };
+  });
+
+  // 排序：陪伴同工固定在最下方 (-1)，其餘按出席率排
+  intervalData.sort((a, b) => {
+      const rateA = a.isCompanion ? -1 : parseFloat(a.cellRate);
+      const rateB = b.isCompanion ? -1 : parseFloat(b.cellRate);
+      return rateB - rateA;
+  });
+
+  return { success: true, groupName: groupName, isSingleDay: false, data: intervalData };
 }
 
-// --- 確保路由載入 ---
-async function ensureAPIReady() {
-    let retryCount = 0;
-    while (typeof window.churchAPI !== 'function' && retryCount < 50) {
-        await new Promise(resolve => setTimeout(resolve, 100)); 
-        retryCount++;
-    }
-}
+/**
+ * 2. 最高權限：全小組彙整 (修正變數名稱一致性)
+ */
+function getAllGroupsStats(startDate, endDate) {
+  const ss = getSs();
+  const sheets = ss.getSheets();
+  const allMembersData = []; 
+  
+  const sLimit = startDate ? new Date(startDate) : null;
+  const eLimit = endDate ? new Date(endDate) : null;
+  if (sLimit) sLimit.setHours(0, 0, 0, 0);
+  if (eLimit) eLimit.setHours(23, 59, 59, 999);
 
-// --- 系統啟動 ---
-window.onload = async () => {
-    try {
-        showLoading("🚀 正在啟動系統通道...");
-        await ensureAPIReady(); 
+  let globalMembers = [];
+  const groupSessionCounts = {};
+  const globalCompanionMap = {}; // 紀錄每個人的陪伴同工狀態
+
+  sheets.forEach(sheet => {
+    const name = sheet.getName();
+    if (name.endsWith("_點名紀錄")) {
+      const gName = name.replace("_點名紀錄", "");
+      const rows = sheet.getDataRange().getValues().slice(1);
+      
+      const uniqueDates = new Set();
+      const memberSet = new Set();
+      const mSheet = getSheetSafely(gName + "_名單");
+
+      if (mSheet) {
+          mSheet.getDataRange().getValues().slice(1).forEach(r => {
+             const mName = cleanName(r[0]);
+             if (!mName) return;
+             if (r[1] && String(r[1]).trim() === "陪伴同工") {
+                 globalCompanionMap[gName + "_" + mName] = true;
+             }
+             memberSet.add(mName);
+          });
+      }
+
+      rows.forEach(row => {
+        if (!row[0]) return;
+        const time = new Date(row[0]).getTime();
+        if (sLimit && time < sLimit.getTime()) return;
+        if (eLimit && time > eLimit.getTime()) return;
         
-        if (typeof checkGroupStatus === 'function') {
-            await checkGroupStatus();
-        } else if (typeof loadAdminData === 'function') {
-            await loadAdminData();
-        }
-    } catch (e) {
-        console.error(e);
-        alert("系統啟動失敗：" + e.message);
-    } finally {
-        hideLoading();
-    }
-};
+        uniqueDates.add(Utilities.formatDate(new Date(row[0]), "GMT+8", "yyyy-MM-dd")); 
 
-// --- API 呼叫 ---
-async function callAPI(action, data = {}) {
-    if (typeof window.churchAPI !== 'function') {
-        alert("⚠️ 系統錯誤：安全路由 (config.js) 尚未載入！");
-        throw new Error("安全路由尚未載入");
-    }
-    return await window.churchAPI(action, data);
-}
-
-// --- 小組編號即時驗證 ---
-document.getElementById('groupCode').addEventListener('input', (e) => {
-    const code = e.target.value.trim().toUpperCase();
-    const idRes = document.getElementById('idResult');
-    const adminSelect = document.getElementById('adminGroupSelect');
-    
-    clearTimeout(debounceTimer);
-
-    if (code.length === 0) {
-        idRes.innerText = '等待輸入...';
-        idRes.className = 'status-badge';
-        return;
-    }
-
-    idRes.innerText = '等待中...';
-    idRes.className = 'status-badge status-wait';
-
-    debounceTimer = setTimeout(async () => {
-        if (code.length < 4) {
-            idRes.innerText = '❌ 字數不足';
-            idRes.className = 'status-badge status-err';
-            return;
-        }
-
-        showLoading("正在驗證小組編號...");
-        try {
-            const res = await callAPI('findGroupByCode', { groupCode: code });
-            if (res.success) {
-                identifiedGroupName = res.groupName;
-                isAdmin = res.isAdmin;
-                idRes.className = 'status-badge status-ok';
-                idRes.innerText = isAdmin ? '🛡️ 最高權限模式' : `✅ 小組：${res.groupName}`;
-                adminSelect.style.display = isAdmin ? 'inline-block' : 'none';
-                if (isAdmin) await loadAdminOptions();
-            } else {
-                identifiedGroupName = "";
-                idRes.innerText = '❌ 查無此代碼';
-                idRes.className = 'status-badge status-err';
-                adminSelect.style.display = 'none';
-            }
-        } catch (err) {
-            idRes.innerText = '⚠️ 連線異常';
-        } finally {
-            hideLoading();
-        }
-    }, 1000);
-});
-
-async function loadAdminOptions() {
-    const res = await callAPI('getGroups');
-    const select = document.getElementById('adminGroupSelect');
-    select.innerHTML = '<option value="ALL">-- 全小組彙整 --</option>';
-    if (res.groups) {
-        res.groups.forEach(g => {
-            const opt = document.createElement('option');
-            opt.value = g.name; opt.innerText = g.name;
-            select.appendChild(opt);
-        });
-    }
-}
-
-// --- 數據查詢與渲染 ---
-async function loadStats() {
-    if (!identifiedGroupName) return alert('請先輸入正確的編號並等待識別');
-    const start = document.getElementById('startDate').value;
-    const end = document.getElementById('endDate').value;
-    const group = isAdmin ? document.getElementById('adminGroupSelect').value : identifiedGroupName;
-    const code = document.getElementById('groupCode').value.toUpperCase();
-
-    showLoading("正在從雲端資料庫彙整報表，請稍候...");
-    
-    try {
-        let res;
-        // 💡 關鍵更新：如果是最高權限 且 選了「ALL」，才隱藏主日數據。其餘情況全部顯示！
-        const isAllGroups = (isAdmin && group === 'ALL');
-        const showSunday = !isAllGroups; 
-
-        if (isAllGroups) {
-            res = await callAPI('getAllGroupsStats', { groupCode: code, startDate: start, endDate: end });
-            (res, start, end, true, showSunday); 
-        } else {
-            res = await callAPI('getStats', { groupName: group, groupCode: code, startDate: start, endDate: end });
-            (res, start, end, false, showSunday); 
-        }
-    } catch (e) {
-        alert("查詢失敗，請稍後再試。");
-    } finally {
-        hideLoading();
-    }
-}
-
-// 🌟 條件渲染：依據權限決定是否顯示三合一進度條
-function renderMultiStats(res, start, end, showGroupCol, showSunday) {
-    if (!res.success) return alert(res.message);
-    const thead = document.querySelector('#statsTable thead');
-    const tbody = document.querySelector('#statsTable tbody');
-    const isSingleDay = (start === end && start !== "");
-
-    if (isSingleDay) {
-        let headerHTML = `<tr><th>姓名</th>`;
-        if (showGroupCol) headerHTML += `<th>所屬小組</th>`;
-        headerHTML += `<th>小組出席</th>`;
-        if (showSunday) headerHTML += `<th>主日崇拜</th><th>主日學</th>`;
-        headerHTML += `</tr>`;
-        thead.innerHTML = headerHTML;
-
-        if (!res.data || res.data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="${showGroupCol ? (showSunday ? 5 : 3) : (showSunday ? 4 : 2)}">當日查無任何紀錄</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = res.data.map(m => {
-            let rowHTML = `<tr><td style="font-weight:bold; font-size:16px;">${m.name}</td>`;
-            if (showGroupCol) rowHTML += `<td><span style="background:#eee; padding:4px 8px; border-radius:12px; font-size:12px;">${m.group || '未分類'}</span></td>`;
-            
-            // 💡 修改點 1：單日模式下，陪伴同工顯示「不列入統計」
-            if (m.isCompanion) {
-                rowHTML += `<td style="color: #666; font-size: 14px;">不列入統計</td>`;
-            } else {
-                rowHTML += `<td style="font-size:20px;">${m.cell ? '✅' : '❌'}</td>`;
-            }
-            
-            if (showSunday) {
-                rowHTML += `
-                    <td style="font-size:20px;">${m.sunday ? '✅' : '❌'}</td>
-                    <td style="font-size:20px;">${m.school ? '✅' : '❌'}</td>`;
-            }
-            rowHTML += `</tr>`;
-            return rowHTML;
-        }).join('');
-
-    } else {
-        let headerHTML = `<tr><th style="width:15%">姓名</th>`;
-        if (showGroupCol) headerHTML += `<th style="width:15%">所屬小組</th>`;
+        const presentList = row[1] ? row[1].toString().split(splitRegex).map(s => cleanName(s)) : [];
+        const newFriendsList = row[3] ? row[3].toString().split(splitRegex).map(s => cleanName(s)) : [];
+        const combinedList = [...new Set([...presentList, ...newFriendsList])].filter(n => n);
         
-        if (showSunday) {
-            headerHTML += `<th style="width:23%">🌱 小組聚會</th><th style="width:23%">⛪ 主日崇拜</th><th style="width:23%">📖 主日學</th></tr>`;
-        } else {
-            headerHTML += `<th>🌱 小組聚會出席狀況</th></tr>`;
-        }
-        thead.innerHTML = headerHTML;
-
-        if (!res.data || res.data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="${showGroupCol ? (showSunday ? 5 : 3) : (showSunday ? 4 : 2)}">此區間內查無資料</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = res.data.map(m => {
-            let rowHTML = `<tr><td style="font-weight:bold; font-size:16px;">${m.name}</td>`;
-            if (showGroupCol) rowHTML += `<td><span style="background:#eee; padding:4px 8px; border-radius:12px; font-size:12px;">${m.group || '未分類'}</span></td>`;
-            
-            // 💡 呼叫進度條生成，內部會自動處理「不列入統計」
-            rowHTML += `<td>${createProgressBar(m.cellStr, m.cellRate, 'color-cell')}</td>`;
-            
-            if (showSunday) {
-                rowHTML += `
-                    <td>${createProgressBar(m.sundayStr, m.sundayRate, 'color-sunday')}</td>
-                    <td>${createProgressBar(m.schoolStr, m.schoolRate, 'color-school')}</td>`;
-            }
-            rowHTML += `</tr>`;
-            return rowHTML;
-        }).join('');
+        combinedList.forEach(m => memberSet.add(m));
+      });
+      
+      groupSessionCounts[gName] = uniqueDates.size;
+      
+      memberSet.forEach(mName => {
+         globalMembers.push({ name: mName, group: gName });
+      });
     }
-}
+  });
 
-// 輔助函式：產生進度條 HTML
-function createProgressBar(textStr, percentage, colorClass) {
-    // 💡 修改點 2：處理陪伴同工的特殊文字顯示
-    if (percentage === "不列入統計") {
-        return `<span style="color:#666; font-size:14px;">不列入統計</span>`;
-    }
+  const isSingleDay = (startDate === endDate && startDate !== "");
+  
+  globalMembers.forEach(memberObj => {
+      let cellCount = 0;
+      const gName = memberObj.group;
+      const mName = memberObj.name;
+      const isCompanion = globalCompanionMap[gName + "_" + mName] || false;
+      
+      const rSheet = getSheetSafely(gName + "_點名紀錄");
+      if (rSheet) {
+          const rows = rSheet.getDataRange().getValues().slice(1);
+          rows.forEach(row => {
+              if (!row[0]) return;
+              const time = new Date(row[0]).getTime();
+              if (sLimit && time < sLimit.getTime()) return;
+              if (eLimit && time > eLimit.getTime()) return;
+              
+              const presentList = row[1] ? row[1].toString().split(splitRegex).map(s => cleanName(s)) : [];
+              const newFriendsList = row[3] ? row[3].toString().split(splitRegex).map(s => cleanName(s)) : [];
+              const combinedList = [...new Set([...presentList, ...newFriendsList])].filter(n => n);
+              if (combinedList.includes(mName)) cellCount++;
+          });
+      }
 
-    if (!textStr || textStr === "0/0" || textStr.endsWith("/0")) {
-        return `<span style="color:#aaa; font-size:12px;">無聚會</span>`;
-    }
-    
-    // 💡 修改點 3：確保數值安全轉換
-    const safePercentage = isNaN(parseFloat(percentage)) ? 0 : parseFloat(percentage).toFixed(1);
-    
-    return `
-        <div class="stat-box">
-            <div class="stat-labels">
-                <span>${textStr}</span>
-                <span>${safePercentage}%</span>
-            </div>
-            <div class="prog-container">
-                <div class="prog-bar ${colorClass}" style="width: ${safePercentage}%"></div>
-            </div>
-        </div>
-    `;
-}
+      if (isSingleDay) {
+          allMembersData.push({
+              name: mName,
+              group: gName,
+              cell: cellCount > 0,
+              isCompanion: isCompanion
+          });
+      } else {
+          const cTotal = groupSessionCounts[gName] || 0;
+          const cRate = cTotal > 0 ? ((cellCount / cTotal) * 100).toFixed(1) : 0;
+          
+          allMembersData.push({
+              name: mName,
+              group: gName,
+              isCompanion: isCompanion,
+              cellRate: isCompanion ? "不列入統計" : cRate,
+              cellStr: isCompanion ? "-" : `${cellCount}/${cTotal}`
+          });
+      }
+  });
 
-// --- Excel 匯出功能 (完美支援動態欄位) ---
-function exportToExcel() {
-    const table = document.getElementById("statsTable");
-    if (table.rows.length <= 1) return alert('目前沒有資料可供匯出');
-    
-    showLoading("正在準備 Excel 檔案...");
-    setTimeout(() => {
-        let csv = "\ufeff";
-        for (let i = 0; i < table.rows.length; i++) {
-            const row = [], cols = table.rows[i].cells;
-            for (let j = 0; j < cols.length; j++) {
-                let cellText = cols[j].innerText;
-                cellText = cellText.replace(/\n/g, ' '); 
-                row.push(cellText);
-            }
-            csv += row.join(",") + "\r\n";
-        }
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `聚會統計報表_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`;
-        link.click();
-        hideLoading();
-    }, 500);
+  if(!isSingleDay){
+      allMembersData.sort((a, b) => {
+         // 先按小組名稱排
+         if (a.group !== b.group) return a.group.localeCompare(b.group);
+         // 同組內，按出席率排，陪伴同工墊底
+         const rateA = a.isCompanion ? -1 : parseFloat(a.cellRate);
+         const rateB = b.isCompanion ? -1 : parseFloat(b.cellRate);
+         return rateB - rateA;
+      });
+  }
+
+  return { success: true, groupName: "ALL", isSingleDay: isSingleDay, data: allMembersData };
 }
