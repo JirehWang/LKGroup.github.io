@@ -15,10 +15,10 @@
     
     <div class="header">
         <h1>⛪ 小組點名系統</h1>
-        <div style="display: flex; gap: 10px; align-items: center;">
-            <button class="stats-link" style="background-color: #4CAF50; border: none; cursor: pointer; white-space: nowrap;" onclick="openWeeklyReport()">📅 本週聚會人數</button>
-            <a href="manage.html" class="stats-link" style="background-color: #607D8B; white-space: nowrap;">⚙️ 後台管理</a>
-            <a href="stats.html" class="stats-link" style="white-space: nowrap;">📊 統計中心</a>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <button class="stats-link" onclick="openWeeklyReport()" style="background-color:#4CAF50; border:none; cursor:pointer; white-space:nowrap; width:90px; text-align:center;">📅 本週聚會人數</button>
+            <a href="manage.html" class="stats-link" style="background-color:#607D8B; white-space:nowrap; width:90px; text-align:center;">⚙️ 後台管理</a>
+            <a href="stats.html" class="stats-link" style="white-space:nowrap; width:90px; text-align:center;">📊 統計中心</a>
         </div>
     </div>
 
@@ -35,7 +35,7 @@
     </div>
 
     <!-- 本週聚會人數彈窗 -->
-    <div id="weeklyModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1000; display:flex; align-items:center; justify-content:center;">
+    <div id="weeklyModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1000; align-items:center; justify-content:center;" onclick="if(event.target===this) closeWeeklyReport()">
         <div style="background:#fff; border-radius:12px; width:90%; max-width:520px; padding:1.5rem; max-height:80vh; overflow-y:auto;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1px solid #eee; padding-bottom:0.75rem;">
                 <h2 style="margin:0; font-size:16px;">📅 本週聚會人數</h2>
