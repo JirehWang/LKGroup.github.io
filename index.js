@@ -140,3 +140,60 @@ async function enterGroup(groupName) {
         alert("驗證時發生網路錯誤。");
     }
 }
+// --- 本週聚會人數彈窗 ---
+async function openWeeklyReport() {
+    const modal = document.getElementById('weeklyModal');
+    const content = document.getElementById('weeklyReportContent');
+    modal.style.display = 'flex';
+    content.innerHTML = '<p style="color:#999; text-align:center; padding:2rem 0;">載入中...</p>';
+
+    try {
+        const res = await window.churchAPI('getWeeklyReport', {});
+        if (!res.success) {
+            content.innerHTML = `<p style="color:#e74c3c; text-align:center;">載入失敗：${res.message}</p>`;
+            return;
+        }
+        if (res.data.length === 0) {
+            content.innerHTML = `<p style="color:#999; text-align:center; padding:2rem 0;">本週尚無聚會紀錄</p>`;
+            return;
+        }
+
+        const totalPeople = res.data.reduce((sum, g) => sum + g.total, 0);
+
+        const rows = res.data.map((g, i) => {
+            const newFriendBadge = g.newFriends > 0 
+                ? `<span style="font-size:12px; background:#fff9c4; color:#f57f17; border-radius:99px; padding:2px 8px; margin-right:6px;">+${g.newFriends} 新朋友</span>` 
+                : '';
+            return `
+                <div style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:0.5px solid #eee;">
+                    <span style="font-size:13px; color:#aaa; width:20px; text-align:center;">${i + 1}</span>
+                    <span style="font-size:14px; font-weight:500; flex:1;">${g.groupName}</span>
+                    ${newFriendBadge}
+                    <span style="font-size:13px; font-weight:500; background:#e8f5e9; color:#2e7d32; border-radius:99px; padding:2px 12px;">${g.total} 人</span>
+                </div>
+            `;
+        }).join('');
+
+        content.innerHTML = `
+            <p style="font-size:12px; color:#999; margin:0 0 1rem;">
+                📆 統計區間：${res.dateRange}
+            </p>
+            ${rows}
+            <div style="display:flex; justify-content:space-between; margin-top:1rem; padding-top:0.75rem; border-top:1px solid #eee; font-size:13px; color:#666;">
+                <span>共 ${res.data.length} 組有聚會紀錄</span>
+                <span>本週合計 <strong>${totalPeople} 人</strong></span>
+            </div>
+        `;
+    } catch (e) {
+        content.innerHTML = `<p style="color:#e74c3c; text-align:center;">連線異常，請稍後再試</p>`;
+    }
+}
+
+function closeWeeklyReport() {
+    document.getElementById('weeklyModal').style.display = 'none';
+}
+
+// 點擊彈窗外部關閉
+document.getElementById('weeklyModal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('weeklyModal')) closeWeeklyReport();
+});
