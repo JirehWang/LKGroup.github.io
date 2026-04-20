@@ -193,13 +193,12 @@ function closeWeeklyReport() {
     document.getElementById('weeklyModal').style.display = 'none';
 }
 
-
-// 點擊彈窗外部關閉
-document.addEventListener('DOMContentLoaded', () => {
+// 點擊彈窗外部關閉 (延遲執行，確保 DOM 完全載入)
+setTimeout(() => {
     const modal = document.getElementById('weeklyModal');
     if (modal) {
         modal.addEventListener('click', (e) => {
             if (e.target === modal) closeWeeklyReport();
         });
     }
-});
+}, 500);
