@@ -193,7 +193,13 @@ function closeWeeklyReport() {
     document.getElementById('weeklyModal').style.display = 'none';
 }
 
+
 // 點擊彈窗外部關閉
-document.getElementById('weeklyModal').addEventListener('click', (e) => {
-    if (e.target === document.getElementById('weeklyModal')) closeWeeklyReport();
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('weeklyModal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeWeeklyReport();
+        });
+    }
 });
