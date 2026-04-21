@@ -15,10 +15,16 @@
     
     <div class="header">
         <h1>⛪ 小組點名系統</h1>
-        <div style="display: flex; gap: 8px; align-items: center;">
-            <button class="stats-link" onclick="openWeeklyReport()" style="background-color:#4CAF50; border:none; cursor:pointer; width:90px; height:90px; display:flex; align-items:center; justify-content:center; font-size:13px; line-height:1.3; white-space:normal; word-break:break-word; padding:8px;">📅 本週聚會人數</button>
-            <a href="manage.html" class="stats-link" style="background-color:#607D8B; width:70px; height:90px; display:flex; align-items:center; justify-content:center; font-size:13px; line-height:1.3; white-space:normal; word-break:break-word; padding:8px;">⚙️ 後台管理</a>
-            <a href="stats.html" class="stats-link" style="width:90px; height:90px; display:flex; align-items:center; justify-content:center; font-size:13px; line-height:1.3; white-space:normal; word-break:break-word; padding:8px;">📊 統計中心</a>
+        <div style="display: flex; gap: 20px; align-items: flex-end; justify-content: center; padding-bottom: 15px; border-bottom: 2px solid #ddd;">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                <button class="stats-link tab-btn active" onclick="openWeeklyReport(); setActiveTab(this)" style="background-color:#4CAF50; border:none; cursor:pointer; width:80px; height:80px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; line-height:1.2; white-space:normal; word-break:break-word; padding:8px; color:#fff; font-weight:bold;">📅 本週聚會人數</button>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                <a href="manage.html" class="stats-link tab-btn" style="background-color:transparent; border:2px solid #4CAF50; width:80px; height:80px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; line-height:1.2; white-space:normal; word-break:break-word; padding:8px; color:#4CAF50; font-weight:bold; text-decoration:none; cursor:pointer;" onclick="setActiveTab(this)">⚙️ 後台管理</a>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                <a href="stats.html" class="stats-link tab-btn" style="background-color:transparent; border:2px solid #ddd; width:80px; height:80px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; line-height:1.2; white-space:normal; word-break:break-word; padding:8px; color:#999; font-weight:bold; text-decoration:none; cursor:pointer;" onclick="setActiveTab(this)">📊 統計中心</a>
+            </div>
         </div>
     </div>
 
