@@ -193,28 +193,6 @@ function closeWeeklyReport() {
     document.getElementById('weeklyModal').style.display = 'none';
 }
 
-function setActiveTab(element) {
-    // 移除所有 tab 的 active 狀態
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.style.backgroundColor = 'transparent';
-        btn.style.border = '2px solid #ddd';
-        btn.style.color = '#999';
-    });
-    
-    // 給點擊的按鈕加上 active 樣式（深綠色實心）
-    element.style.backgroundColor = '#4CAF50';
-    element.style.border = 'none';
-    element.style.color = '#fff';
-}
-
-// 頁面載入時，設定第一個按鈕為 active
-window.addEventListener('DOMContentLoaded', () => {
-    const firstTab = document.querySelector('.tab-btn.active');
-    if (firstTab) {
-        setActiveTab(firstTab);
-    }
-});
-
 // 點擊彈窗外部關閉 (延遲執行，確保 DOM 完全載入)
 setTimeout(() => {
     const modal = document.getElementById('weeklyModal');
