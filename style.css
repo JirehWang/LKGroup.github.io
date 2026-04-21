@@ -192,3 +192,25 @@ input, select, textarea {
 /* 數據文字排版 */
 .stat-box { display: flex; flex-direction: column; align-items: flex-start; margin: 0 5px; }
 .stat-labels { width: 100%; display: flex; justify-content: space-between; font-size: 12px; color: #555; font-weight: bold; }
+
+function setActiveTab(element) {
+    // 移除所有 tab 的 active 狀態
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.style.backgroundColor = 'transparent';
+        btn.style.border = '2px solid #ddd';
+        btn.style.color = '#999';
+    });
+    
+    // 給點擊的按鈕加上 active 樣式（深綠色實心）
+    element.style.backgroundColor = '#4CAF50';
+    element.style.border = 'none';
+    element.style.color = '#fff';
+}
+
+// 頁面載入時，設定第一個按鈕為 active
+window.addEventListener('DOMContentLoaded', () => {
+    const firstTab = document.querySelector('.tab-btn.active');
+    if (firstTab) {
+        setActiveTab(firstTab);
+    }
+});
