@@ -220,7 +220,6 @@ async function saveGroupEdit() {
             }
             
             await loadGroups(); // 重新載入最新清單
-        }
         } else {
             alert('❌ 修改失敗：' + res.message);
         }
