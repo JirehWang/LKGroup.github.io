@@ -178,20 +178,17 @@ function closeEditModal() {
 async function saveGroupEdit() {
     const newName = document.getElementById('editNewName').value.trim();
     const newCode = document.getElementById('editNewCode').value.trim();
-    const newStatus = document.getElementById('editNewStatus').value; // ✅ 讀取狀態
+    const newStatus = document.getElementById('editNewStatus').value;
 
     if (!newName) return alert("名稱不可為空！");
     if (newCode.length < 4) return alert("代碼至少需要 4 碼！");
 
-    // 檢查是否有實質性的修改
     const hasChanges = 
         newName !== currentEditingGroup.name || 
         newCode !== currentEditingGroup.code || 
         newStatus !== currentEditingGroup.status;
     
-    if (!hasChanges) {
-        return alert("⚠️ 您沒有做任何修改！");
-    }
+    if (!hasChanges) return alert("⚠️ 您沒有做任何修改！");
 
     if (newName !== currentEditingGroup.name) {
         if (!confirm(`⚠️ 警告：您即將把【${currentEditingGroup.name}】改名為【${newName}】\n\n系統將會同步重新命名資料庫中的分頁，此動作需要幾秒鐘，確定要執行嗎？`)) {
@@ -201,25 +198,21 @@ async function saveGroupEdit() {
 
     showLoading("正在更新資料庫與同步分頁名稱，請勿關閉網頁...");
     try {
-        // ✅ 傳入完整參數，包含 uuid 和 status
         const res = await callAPI('updateGroupInfo', { 
-            uuid: currentEditingGroup.uuid,        // ✅ 必須傳入 UUID
-            oldName: currentEditingGroup.name,     // ✅ 使用原始名稱
+            uuid: currentEditingGroup.uuid,
+            oldName: currentEditingGroup.name,
             newName: newName, 
             newCode: newCode,
-            newStatus: newStatus                   // ✅ 傳入新狀態
+            newStatus: newStatus
         });
 
         if (res.success) {
             alert('✅ 修改成功！分頁名稱已同步更新。');
             closeEditModal();
-            
-            // ✅ 如果代碼被修改了，更新本地儲存的代碼
             if (newCode !== currentEditingGroup.code) {
                 verifiedAdminCode = newCode;
             }
-            
-            await loadGroups(); // 重新載入最新清單
+            await loadGroups();
         } else {
             alert('❌ 修改失敗：' + res.message);
         }
