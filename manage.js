@@ -213,7 +213,14 @@ async function saveGroupEdit() {
         if (res.success) {
             alert('✅ 修改成功！分頁名稱已同步更新。');
             closeEditModal();
+            
+            // ✅ 如果代碼被修改了，更新本地儲存的代碼
+            if (newCode !== currentEditingGroup.code) {
+                verifiedAdminCode = newCode;
+            }
+            
             await loadGroups(); // 重新載入最新清單
+        }
         } else {
             alert('❌ 修改失敗：' + res.message);
         }
